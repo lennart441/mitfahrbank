@@ -26,6 +26,7 @@ export type RideRequest = {
   dest_lon: number | null;
   status: string;
   driver_id: string | null;
+  archived_at: Date | null;
   created_at: Date;
   updated_at: Date;
 };

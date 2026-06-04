@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { config } from "../config.js";
 import { pool, type RideRequest, type ShoppingRequest, type User } from "../db.js";
 import { getUserById, requireAuth } from "../auth.js";
-import { searchPlaces } from "../geocode.js";
+import { reverseGeocode, searchPlaces } from "../geocode.js";
 import { notifyDrivers } from "../ntfy.js";
 import {
   canAccessRideChat,
@@ -49,6 +49,24 @@ export async function registerApiRoutes(app: FastifyInstance) {
       return results;
     } catch {
       return reply.code(502).send({ error: "Geocoding unavailable" });
+    }
+  });
+
+  app.get("/api/reverse-geocode", async (request, reply) => {
+    const auth = requireAuth(request);
+    if (!auth) return reply.code(401).send({ error: "Unauthorized" });
+
+    const query = request.query as { lat?: string; lon?: string };
+    const lat = Number(query.lat);
+    const lon = Number(query.lon);
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      return reply.code(400).send({ error: "lat and lon required" });
+    }
+
+    try {
+      return await reverseGeocode(lat, lon);
+    } catch {
+      return reply.code(502).send({ error: "Reverse geocoding unavailable" });
     }
   });
 
@@ -139,7 +157,12 @@ export async function registerApiRoutes(app: FastifyInstance) {
     const auth = requireAuth(request);
     if (!auth) return reply.code(401).send({ error: "Unauthorized" });
 
-    const query = request.query as { role?: string; mine?: string };
+    const query = request.query as {
+      role?: string;
+      mine?: string;
+      archive?: string;
+    };
+    const isArchive = query.archive === "1";
 
     let sql = `
       SELECT r.*,
@@ -155,17 +178,31 @@ export async function registerApiRoutes(app: FastifyInstance) {
     `;
     const params: unknown[] = [];
 
-    if (query.mine === "1") {
-      sql += ` WHERE (r.user_id = $1 OR r.driver_id = $1)`;
+    if (isArchive) {
+      if (query.role === "driver") {
+        sql += ` WHERE r.driver_id = $1 AND r.archived_at IS NOT NULL`;
+        params.push(auth.userId);
+      } else if (query.mine === "1") {
+        sql += ` WHERE (r.user_id = $1 OR r.driver_id = $1) AND r.archived_at IS NOT NULL`;
+        params.push(auth.userId);
+      } else {
+        sql += ` WHERE r.user_id = $1 AND r.archived_at IS NOT NULL`;
+        params.push(auth.userId);
+      }
+      sql += ` ORDER BY r.archived_at DESC NULLS LAST, r.updated_at DESC LIMIT 100`;
+    } else if (query.mine === "1") {
+      sql += ` WHERE (r.user_id = $1 OR r.driver_id = $1) AND r.archived_at IS NULL`;
       params.push(auth.userId);
     } else if (query.role === "driver") {
-      sql += ` WHERE r.status IN ('waiting', 'driving')`;
+      sql += ` WHERE r.status IN ('waiting', 'driving') AND r.archived_at IS NULL`;
     } else {
-      sql += ` WHERE r.user_id = $1`;
+      sql += ` WHERE r.user_id = $1 AND r.archived_at IS NULL`;
       params.push(auth.userId);
     }
 
-    sql += ` ORDER BY r.created_at DESC LIMIT 50`;
+    if (!isArchive) {
+      sql += ` ORDER BY r.created_at DESC LIMIT 50`;
+    }
 
     const { rows } = await pool.query<RideWithNames>(sql, params);
     return rows;
@@ -205,8 +242,13 @@ export async function registerApiRoutes(app: FastifyInstance) {
 
     const { rows } = await pool.query<RideRequest>(
       `UPDATE ride_requests
-       SET status = $3, updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND (user_id = $2 OR driver_id = $2)
+       SET status = $3,
+           updated_at = CURRENT_TIMESTAMP,
+           archived_at = CASE
+             WHEN $3 IN ('completed', 'cancelled') THEN CURRENT_TIMESTAMP
+             ELSE archived_at
+           END
+       WHERE id = $1 AND (user_id = $2 OR driver_id = $2) AND archived_at IS NULL
        RETURNING *`,
       [id, auth.userId, status],
     );

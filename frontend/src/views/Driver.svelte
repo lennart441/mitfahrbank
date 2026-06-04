@@ -1,12 +1,15 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import OsmMap from "../lib/OsmMap.svelte";
+  import RideArchive from "../lib/RideArchive.svelte";
   import RideChat from "../lib/RideChat.svelte";
   import { api, mapsLink, type RideRequest } from "../lib/api";
 
   let { refreshKey = 0 }: { refreshKey?: number } = $props();
 
   let rides = $state<RideRequest[]>([]);
+  let archivedRides = $state<RideRequest[]>([]);
+  let showArchive = $state(false);
   let loading = $state(true);
   let error = $state("");
   let claimingId = $state<number | null>(null);
@@ -14,7 +17,12 @@
   async function load() {
     loading = true;
     try {
-      rides = await api.rides({ role: "driver" });
+      const [active, archived] = await Promise.all([
+        api.rides({ role: "driver" }),
+        api.rides({ role: "driver", archive: true }),
+      ]);
+      rides = active;
+      archivedRides = archived;
     } finally {
       loading = false;
     }
@@ -133,4 +141,13 @@
       </article>
     {/each}
   </div>
+{/if}
+
+{#if archivedRides.length > 0}
+  <details class="panel archive-panel" style="margin-top:2rem" bind:open={showArchive}>
+    <summary>
+      Archiv ({archivedRides.length} abgeschlossene Mitfahrten)
+    </summary>
+    <RideArchive rides={archivedRides} variant="driver" />
+  </details>
 {/if}

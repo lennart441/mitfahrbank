@@ -27,6 +27,7 @@ export type RideRequest = {
   dest_lon: number | null;
   status: string;
   driver_id: string | null;
+  archived_at?: string | null;
   seeker_name?: string;
   seeker_phone?: string | null;
   seeker_phone_public?: boolean;
@@ -89,6 +90,10 @@ export const api = {
     request<{ label: string; lat: number; lon: number }[]>(
       `/api/geocode?q=${encodeURIComponent(q)}`,
     ),
+  reverseGeocode: (lat: number, lon: number) =>
+    request<{ label: string; fromAddress: boolean }>(
+      `/api/reverse-geocode?lat=${lat}&lon=${lon}`,
+    ),
   createRide: (payload: {
     destination: string;
     dest_lat?: number | null;
@@ -98,10 +103,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload),
     }),
-  rides: (opts?: { role?: string; mine?: boolean }) => {
+  rides: (opts?: { role?: string; mine?: boolean; archive?: boolean }) => {
     const q = new URLSearchParams();
     if (opts?.role) q.set("role", opts.role);
     if (opts?.mine) q.set("mine", "1");
+    if (opts?.archive) q.set("archive", "1");
     const qs = q.toString();
     return request<RideRequest[]>(`/api/ride-requests${qs ? `?${qs}` : ""}`);
   },

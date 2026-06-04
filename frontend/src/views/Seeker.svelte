@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import DestinationPicker from "../lib/DestinationPicker.svelte";
   import OsmMap from "../lib/OsmMap.svelte";
+  import RideArchive from "../lib/RideArchive.svelte";
   import RideChat from "../lib/RideChat.svelte";
   import {
     api,
@@ -32,14 +33,21 @@
     lon: number;
   } | null>(null);
   let myRides = $state<RideRequest[]>([]);
+  let archivedRides = $state<RideRequest[]>([]);
+  let showArchive = $state(false);
   let submitting = $state(false);
   let error = $state("");
 
   async function load() {
-    const [cfg, rides] = await Promise.all([api.config(), api.rides()]);
+    const [cfg, rides, archived] = await Promise.all([
+      api.config(),
+      api.rides(),
+      api.rides({ archive: true }),
+    ]);
     presets = cfg.destinations;
     mapConfig = cfg.map;
     myRides = rides;
+    archivedRides = archived;
   }
 
   onMount(load);
@@ -142,7 +150,7 @@
 
 {#if myRides.length > 0}
   <header class="page-header" style="margin-top:2.5rem">
-    <h2>Meine Fahrten</h2>
+    <h2>Aktuelle Fahrten</h2>
   </header>
   <div class="card-grid card-grid--2">
     {#each myRides as ride}
@@ -181,4 +189,13 @@
       </article>
     {/each}
   </div>
+{/if}
+
+{#if archivedRides.length > 0}
+  <details class="panel archive-panel" style="margin-top:2rem" bind:open={showArchive}>
+    <summary>
+      Archiv ({archivedRides.length} abgeschlossene oder abgebrochene Fahrten)
+    </summary>
+    <RideArchive rides={archivedRides} variant="seeker" />
+  </details>
 {/if}

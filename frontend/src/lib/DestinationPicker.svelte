@@ -25,12 +25,16 @@
   );
   let searching = $state(false);
   let customLabel = $state("");
+  let labelTouched = $state(false);
+  let resolving = $state(false);
+  let lastResolvedFromAddress = $state(false);
   let pickLat = $state(54.05);
   let pickLon = $state(10.3);
   let mapEl: HTMLDivElement;
   let map: L.Map | undefined;
   let marker: L.Marker | undefined;
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
+  let resolveTimer: ReturnType<typeof setTimeout> | undefined;
 
   $effect(() => {
     pickLat = mapConfig.defaultLat;
@@ -62,7 +66,9 @@
   }
 
   function applySearchResult(r: { label: string; lat: number; lon: number }) {
-    customLabel = r.label.split(",").slice(0, 2).join(", ");
+    customLabel = r.label;
+    labelTouched = false;
+    lastResolvedFromAddress = true;
     pickLat = r.lat;
     pickLon = r.lon;
     searchResults = [];
@@ -71,9 +77,46 @@
     map?.setView([r.lat, r.lon], 15);
   }
 
-  function confirmCustom() {
-    const label =
-      customLabel.trim() || `${pickLat.toFixed(4)}, ${pickLon.toFixed(4)}`;
+  function onLabelInput() {
+    labelTouched = true;
+  }
+
+  async function resolveLabelForPick(lat: number, lon: number) {
+    resolving = true;
+    try {
+      const result = await api.reverseGeocode(lat, lon);
+      lastResolvedFromAddress = result.fromAddress;
+      if (!labelTouched) {
+        customLabel = result.label;
+      }
+    } catch {
+      lastResolvedFromAddress = false;
+      if (!labelTouched) {
+        customLabel = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      }
+    } finally {
+      resolving = false;
+    }
+  }
+
+  function scheduleResolve(lat: number, lon: number) {
+    pickLat = lat;
+    pickLon = lon;
+    clearTimeout(resolveTimer);
+    resolveTimer = setTimeout(() => resolveLabelForPick(lat, lon), 350);
+  }
+
+  function setPickPosition(lat: number, lon: number) {
+    marker?.setLatLng([lat, lon]);
+    scheduleResolve(lat, lon);
+  }
+
+  async function confirmCustom() {
+    let label = customLabel.trim();
+    if (!label) {
+      const result = await api.reverseGeocode(pickLat, pickLon);
+      label = result.label;
+    }
     onSelect({ label, lat: pickLat, lon: pickLon });
   }
 
@@ -91,14 +134,21 @@
     marker = L.marker([pickLat, pickLon], { draggable: true }).addTo(map);
     marker.on("dragend", () => {
       const pos = marker!.getLatLng();
-      pickLat = pos.lat;
-      pickLon = pos.lng;
+      labelTouched = false;
+      setPickPosition(pos.lat, pos.lng);
     });
     map.on("click", (e) => {
-      pickLat = e.latlng.lat;
-      pickLon = e.latlng.lng;
-      marker?.setLatLng(e.latlng);
+      labelTouched = false;
+      setPickPosition(e.latlng.lat, e.latlng.lng);
     });
+
+    scheduleResolve(pickLat, pickLon);
+  }
+
+  function openMapMode() {
+    mode = "map";
+    labelTouched = false;
+    customLabel = "";
   }
 
   $effect(() => {
@@ -109,6 +159,7 @@
 
   onDestroy(() => {
     clearTimeout(searchTimer);
+    clearTimeout(resolveTimer);
     map?.remove();
     map = undefined;
   });
@@ -123,7 +174,7 @@
       </button>
     {/each}
   </div>
-  <button type="button" class="btn btn-primary" style="margin-top:0.5rem" onclick={() => (mode = "map")}>
+  <button type="button" class="btn btn-primary" style="margin-top:0.5rem" onclick={openMapMode}>
     Anderes Ziel auf der Karte
   </button>
 {:else}
@@ -157,20 +208,29 @@
   <div bind:this={mapEl} class="picker-map"></div>
 
   <div class="field">
-    <label for="custom-label">Bezeichnung (frei)</label>
+    <label for="custom-label">Zielbezeichnung</label>
     <input
       id="custom-label"
       bind:value={customLabel}
-      placeholder="z. B. Meine Adresse, Arzt …"
+      oninput={onLabelInput}
+      placeholder={resolving ? "Adresse wird ermittelt …" : "Adresse oder Koordinaten"}
     />
   </div>
   <p style="font-size:0.875rem;color:var(--text-muted);margin:0 0 1rem">
-    Tippen Sie auf die Karte oder ziehen Sie die Markierung.
+    {#if resolving}
+      Adresse wird ermittelt …
+    {:else if lastResolvedFromAddress}
+      Adresse in der Nähe erkannt (max. 30&nbsp;m). Sie können den Text anpassen.
+    {:else if customLabel}
+      Keine nahe Adresse gefunden — Koordinaten werden verwendet. Text ist anpassbar.
+    {:else}
+      Tippen Sie auf die Karte oder ziehen Sie die Markierung.
+    {/if}
   </p>
 
   <div class="btn-row">
-    <button type="button" class="btn btn-primary" onclick={confirmCustom}>
-      Dieses Ziel verwenden
+    <button type="button" class="btn btn-primary" disabled={resolving} onclick={confirmCustom}>
+      {resolving ? "Bitte warten …" : "Dieses Ziel verwenden"}
     </button>
     <button type="button" class="btn btn-secondary" onclick={() => (mode = "preset")}>
       Zurück zur Kurzwahl
