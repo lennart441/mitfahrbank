@@ -15,7 +15,7 @@ import { runMigrations } from "./run-migrations.js";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(__dirname, "..", "public");
 
-const app = Fastify({ logger: true });
+const app = Fastify({ logger: true, trustProxy: true });
 
 const wsClients = new Set<{ send: (data: string) => void }>();
 
@@ -30,7 +30,7 @@ app.decorate("broadcast", (payload: object) => {
   }
 });
 
-await app.register(cookie);
+await app.register(cookie, { secret: config.sessionSecret });
 await app.register(cors, {
   origin: config.frontendUrl,
   credentials: true,
@@ -38,11 +38,13 @@ await app.register(cors, {
 await app.register(session, {
   secret: config.sessionSecret,
   cookie: {
+    httpOnly: true,
     secure: config.publicUrl.startsWith("https"),
     maxAge: 60 * 60 * 24 * 7,
     sameSite: "lax",
     path: "/",
   },
+  saveUninitialized: true,
 });
 
 await app.register(websocket);

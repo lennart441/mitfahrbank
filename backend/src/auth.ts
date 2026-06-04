@@ -1,7 +1,51 @@
-import type { FastifyInstance, FastifyRequest } from "fastify";
+import type {
+  FastifyInstance,
+  FastifyReply,
+  FastifyRequest,
+} from "fastify";
 import * as client from "openid-client";
 import { config, oidcConfigured } from "./config.js";
 import { pool, type User } from "./db.js";
+
+const OAUTH_STATE_COOKIE = "oauth_state";
+const OAUTH_NONCE_COOKIE = "oauth_nonce";
+
+function oauthCookieOptions() {
+  return {
+    httpOnly: true,
+    secure: config.publicUrl.startsWith("https"),
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge: 600,
+    signed: true,
+  };
+}
+
+function readSignedOAuthCookie(
+  request: FastifyRequest,
+  name: string,
+): string | null {
+  const raw = request.cookies[name];
+  if (!raw) return null;
+  const { valid, value } = request.unsignCookie(raw);
+  return valid && value ? value : null;
+}
+
+function clearOAuthCookies(reply: FastifyReply) {
+  const opts = { path: "/" };
+  reply.clearCookie(OAUTH_STATE_COOKIE, opts);
+  reply.clearCookie(OAUTH_NONCE_COOKIE, opts);
+}
+
+function storeOAuthInCookies(
+  reply: FastifyReply,
+  state: string,
+  nonce: string,
+) {
+  const opts = oauthCookieOptions();
+  reply.setCookie(OAUTH_STATE_COOKIE, state, opts);
+  reply.setCookie(OAUTH_NONCE_COOKIE, nonce, opts);
+}
 
 declare module "@fastify/session" {
   interface FastifySessionObject {
@@ -66,6 +110,8 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     const nonce = client.randomNonce();
     request.session.oauthState = state;
     request.session.oauthNonce = nonce;
+    storeOAuthInCookies(reply, state, nonce);
+    await request.session.save();
 
     const redirectTo = client.buildAuthorizationUrl(oidc, {
       redirect_uri: config.oidc.redirectUri,
@@ -84,8 +130,12 @@ export async function registerAuthRoutes(app: FastifyInstance) {
     }
 
     const url = new URL(`${config.publicUrl}${request.url}`);
-    const state = request.session.oauthState;
-    const nonce = request.session.oauthNonce;
+    const state =
+      readSignedOAuthCookie(request, OAUTH_STATE_COOKIE) ??
+      request.session.oauthState;
+    const nonce =
+      readSignedOAuthCookie(request, OAUTH_NONCE_COOKIE) ??
+      request.session.oauthNonce;
 
     if (!state || !nonce) {
       return reply.code(400).send({ error: "Missing OAuth session" });
@@ -111,9 +161,12 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       request.session.userId = sub;
       delete request.session.oauthState;
       delete request.session.oauthNonce;
+      clearOAuthCookies(reply);
+      await request.session.save();
 
       return reply.redirect("/");
     } catch (err) {
+      clearOAuthCookies(reply);
       request.log.error(err);
       return reply.code(401).send({ error: "Login failed" });
     }
