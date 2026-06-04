@@ -37,11 +37,13 @@
   });
 </script>
 
-<div class="chat-box">
+<div class="chat-panel">
   <h3>Nachrichten</h3>
-  <div class="chat-messages" aria-live="polite">
+  <div class="chat-feed" aria-live="polite">
     {#if messages.length === 0}
-      <p><small>Noch keine Nachrichten. z. B. „Ich stehe am blauen Auto“</small></p>
+      <p style="margin:0;color:var(--text-muted);font-size:0.9375rem">
+        Noch keine Nachrichten — z. B. „Ich stehe am blauen Auto“
+      </p>
     {:else}
       {#each messages as m}
         <p class="chat-line">
@@ -50,34 +52,16 @@
       {/each}
     {/if}
   </div>
-  <div class="chat-input">
+  <div class="chat-compose">
     <input
       type="text"
       bind:value={draft}
       placeholder="Nachricht schreiben …"
+      aria-label="Chat-Nachricht"
       onkeydown={(e) => e.key === "Enter" && send()}
     />
-    <button class="touch-btn" disabled={sending} onclick={send}>Senden</button>
+    <button type="button" class="btn btn-primary" disabled={sending} onclick={send}>
+      Senden
+    </button>
   </div>
 </div>
-
-<style>
-  .chat-box {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 2px solid var(--pico-muted-border-color);
-  }
-  .chat-messages {
-    max-height: 10rem;
-    overflow-y: auto;
-    margin-bottom: 0.75rem;
-  }
-  .chat-line {
-    margin: 0.35rem 0;
-  }
-  .chat-input {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-  }
-</style>

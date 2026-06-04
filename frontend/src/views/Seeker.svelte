@@ -79,6 +79,16 @@
     error = "";
   }
 
+  function statusBadge(s: string) {
+    const map: Record<string, string> = {
+      waiting: "badge-waiting",
+      driving: "badge-driving",
+      completed: "badge-done",
+      cancelled: "badge-waiting",
+    };
+    return map[s] ?? "badge-waiting";
+  }
+
   function statusLabel(s: string) {
     const map: Record<string, string> = {
       waiting: "Warte auf Fahrer",
@@ -94,71 +104,72 @@
   }
 </script>
 
-<main>
-  <h1>Fahrt suchen</h1>
-  <p class="subtitle">Kurzwahl oder Karte — dann bestätigen.</p>
+<header class="page-header">
+  <h2>Fahrt suchen</h2>
+  <p class="page-lead">Kurzwahl oder Karte — in zwei Schritten zur Anfrage.</p>
+</header>
 
-  {#if step === "pick"}
-    <DestinationPicker
-      {mapConfig}
-      presets={presets}
-      onSelect={onDestPick}
-    />
-  {:else if step === "confirm" && selected}
-    <div class="card-block">
-      <p>Ziel:</p>
-      <p><strong style="font-size: 1.35rem">{selected.label}</strong></p>
-      <OsmMap
-        lat={selected.lat}
-        lon={selected.lon}
-        markerLabel={selected.label}
-      />
-      <p>
-        <a href={mapsLink(selected.lat, selected.lon)} target="_blank" rel="noopener">
-          In OpenStreetMap öffnen
-        </a>
-      </p>
+{#if step === "pick"}
+  <section class="card">
+    <DestinationPicker {mapConfig} {presets} onSelect={onDestPick} />
+  </section>
+{:else if step === "confirm" && selected}
+  <section class="card">
+    <p class="card-title">Ihr Ziel</p>
+    <p style="font-size:1.35rem;font-weight:700;margin:0 0 1rem">{selected.label}</p>
+    <div class="map-wrap">
+      <OsmMap lat={selected.lat} lon={selected.lon} markerLabel={selected.label} height="min(38vh, 280px)" />
     </div>
-    <button class="touch-btn" disabled={submitting} onclick={confirm}>
-      {submitting ? "Wird gesendet …" : "Fahrt jetzt anfragen"}
-    </button>
-    <button class="touch-btn secondary" onclick={reset}>Zurück</button>
-    {#if error}<p role="alert">{error}</p>{/if}
-  {:else}
-    <div class="card-block">
-      <p><strong>Ihre Anfrage wurde gesendet.</strong></p>
-      <p>Registrierte Fahrer erhalten eine Push-Meldung (ntfy). Status unten.</p>
+    <p>
+      <a href={mapsLink(selected.lat, selected.lon)} target="_blank" rel="noopener">In OpenStreetMap öffnen</a>
+    </p>
+    {#if error}<div class="alert alert-error" role="alert">{error}</div>{/if}
+    <div class="btn-row">
+      <button type="button" class="btn btn-primary" disabled={submitting} onclick={confirm}>
+        {submitting ? "Wird gesendet …" : "Fahrt jetzt anfragen"}
+      </button>
+      <button type="button" class="btn btn-secondary" onclick={reset}>Zurück</button>
     </div>
-    <button class="touch-btn" onclick={reset}>Weitere Fahrt anfragen</button>
-  {/if}
+  </section>
+{:else}
+  <section class="card">
+    <div class="alert alert-success" role="status">
+      <strong>Anfrage gesendet.</strong> Registrierte Fahrer werden per Push (ntfy) informiert.
+    </div>
+    <button type="button" class="btn btn-primary" onclick={reset}>Weitere Fahrt anfragen</button>
+  </section>
+{/if}
 
-  {#if myRides.length > 0}
-    <h2 style="margin-top: 2rem">Meine Fahrten</h2>
+{#if myRides.length > 0}
+  <header class="page-header" style="margin-top:2.5rem">
+    <h2>Meine Fahrten</h2>
+  </header>
+  <div class="card-grid card-grid--2">
     {#each myRides as ride}
-      <article class="card-block">
-        <p><strong>{ride.destination}</strong></p>
-        <p class="status-{ride.status}">{statusLabel(ride.status)}</p>
+      <article class="card">
+        <p class="card-title">{ride.destination}</p>
+        <span class="badge {statusBadge(ride.status)}">{statusLabel(ride.status)}</span>
         {#if hasCoords(ride)}
-          <OsmMap
-            lat={ride.dest_lat!}
-            lon={ride.dest_lon!}
-            markerLabel={ride.destination}
-          />
+          <div class="map-wrap">
+            <OsmMap lat={ride.dest_lat!} lon={ride.dest_lon!} markerLabel={ride.destination} height="200px" />
+          </div>
         {/if}
         {#if ride.driver_name}
-          <p>Fahrer: {ride.driver_name}</p>
+          <p style="margin-top:0.75rem;color:var(--text-secondary)">Fahrer: <strong>{ride.driver_name}</strong></p>
         {/if}
         {#if ride.status === "driving"}
           {#if ride.driver_phone_public && ride.driver_phone}
-            <a class="touch-btn call-btn" href="tel:{ride.driver_phone}">
-              Fahrer anrufen: {ride.driver_phone}
+            <a class="btn btn-call" href="tel:{ride.driver_phone}" style="margin-top:1rem">
+              Fahrer anrufen · {ride.driver_phone}
             </a>
           {/if}
           <RideChat rideId={ride.id} {refreshKey} />
         {:else if ride.status === "waiting"}
           <RideChat rideId={ride.id} {refreshKey} />
           <button
-            class="touch-btn secondary"
+            type="button"
+            class="btn btn-secondary"
+            style="margin-top:0.75rem"
             onclick={async () => {
               await api.updateRide(ride.id, "cancelled");
               await load();
@@ -169,5 +180,5 @@
         {/if}
       </article>
     {/each}
-  {/if}
-</main>
+  </div>
+{/if}

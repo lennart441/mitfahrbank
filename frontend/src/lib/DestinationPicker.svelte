@@ -25,12 +25,17 @@
   );
   let searching = $state(false);
   let customLabel = $state("");
-  let pickLat = $state(mapConfig.defaultLat);
-  let pickLon = $state(mapConfig.defaultLon);
+  let pickLat = $state(54.05);
+  let pickLon = $state(10.3);
   let mapEl: HTMLDivElement;
   let map: L.Map | undefined;
   let marker: L.Marker | undefined;
   let searchTimer: ReturnType<typeof setTimeout> | undefined;
+
+  $effect(() => {
+    pickLat = mapConfig.defaultLat;
+    pickLon = mapConfig.defaultLon;
+  });
 
   function selectPreset(p: DestinationPreset) {
     onSelect({ label: p.label, lat: p.lat, lon: p.lon });
@@ -67,7 +72,8 @@
   }
 
   function confirmCustom() {
-    const label = customLabel.trim() || `${pickLat.toFixed(4)}, ${pickLon.toFixed(4)}`;
+    const label =
+      customLabel.trim() || `${pickLat.toFixed(4)}, ${pickLon.toFixed(4)}`;
     onSelect({ label, lat: pickLat, lon: pickLon });
   }
 
@@ -95,43 +101,47 @@
     });
   }
 
-  onMount(() => {
-    if (mode === "map") initPickerMap();
-  });
-
   $effect(() => {
     if (mode === "map") {
-      setTimeout(initPickerMap, 50);
+      setTimeout(initPickerMap, 80);
     }
   });
 
   onDestroy(() => {
     clearTimeout(searchTimer);
     map?.remove();
+    map = undefined;
   });
 </script>
 
 {#if mode === "preset"}
-  <p><strong>Kurzwahl</strong></p>
-  {#each presets as p}
-    <button class="touch-btn" onclick={() => selectPreset(p)}>{p.label}</button>
-  {/each}
-  <button class="touch-btn secondary" onclick={() => (mode = "map")}>
+  <p class="card-title" style="margin-top:0">Wohin möchten Sie?</p>
+  <div class="preset-list">
+    {#each presets as p}
+      <button type="button" class="btn btn-secondary" onclick={() => selectPreset(p)}>
+        {p.label}
+      </button>
+    {/each}
+  </div>
+  <button type="button" class="btn btn-primary" style="margin-top:0.5rem" onclick={() => (mode = "map")}>
     Anderes Ziel auf der Karte
   </button>
 {:else}
-  <p><strong>Ziel auf der Karte wählen</strong></p>
-  <label>
-    Ort suchen (OpenStreetMap)
+  <p class="card-title" style="margin-top:0">Ziel auf der Karte</p>
+  <div class="field">
+    <label for="geo-search">Ort suchen</label>
     <input
+      id="geo-search"
       type="search"
       bind:value={searchQuery}
       oninput={onSearchInput}
       placeholder="Straße, Ort …"
       autocomplete="off"
     />
-  </label>
-  {#if searching}<p><small>Suche …</small></p>{/if}
+  </div>
+  {#if searching}
+    <p style="color:var(--text-muted);font-size:0.875rem">Suche …</p>
+  {/if}
   {#if searchResults.length > 0}
     <ul class="search-results">
       {#each searchResults as r}
@@ -146,37 +156,24 @@
 
   <div bind:this={mapEl} class="picker-map"></div>
 
-  <label>
-    Bezeichnung (frei)
+  <div class="field">
+    <label for="custom-label">Bezeichnung (frei)</label>
     <input
+      id="custom-label"
       bind:value={customLabel}
       placeholder="z. B. Meine Adresse, Arzt …"
     />
-  </label>
-  <p><small>Tippen Sie auf die Karte oder ziehen Sie die Markierung.</small></p>
+  </div>
+  <p style="font-size:0.875rem;color:var(--text-muted);margin:0 0 1rem">
+    Tippen Sie auf die Karte oder ziehen Sie die Markierung.
+  </p>
 
-  <button class="touch-btn" onclick={confirmCustom}>Dieses Ziel verwenden</button>
-  <button class="touch-btn secondary" onclick={() => (mode = "preset")}>
-    Zurück zur Kurzwahl
-  </button>
+  <div class="btn-row">
+    <button type="button" class="btn btn-primary" onclick={confirmCustom}>
+      Dieses Ziel verwenden
+    </button>
+    <button type="button" class="btn btn-secondary" onclick={() => (mode = "preset")}>
+      Zurück zur Kurzwahl
+    </button>
+  </div>
 {/if}
-
-<style>
-  .picker-map {
-    height: 280px;
-    width: 100%;
-    margin: 0.75rem 0;
-    border-radius: 8px;
-  }
-  .search-results {
-    list-style: none;
-    padding: 0;
-    margin: 0 0 1rem;
-  }
-  .search-results button {
-    width: 100%;
-    text-align: left;
-    min-height: 2.75rem;
-    margin-bottom: 0.35rem;
-  }
-</style>

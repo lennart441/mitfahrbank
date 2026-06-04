@@ -45,55 +45,61 @@
   }
 </script>
 
-<main>
-  <h1>Mein Profil</h1>
-  <p class="subtitle">Telefon, Push für Fahrer, ntfy</p>
+<header class="page-header">
+  <h2>Mein Profil</h2>
+  <p class="page-lead">Telefon für Anrufe, ntfy für Push als potenzieller Fahrer.</p>
+</header>
 
-  <p><strong>Name:</strong> {user.name}</p>
-
-  <h2>Telefon & Anruf</h2>
-  <label>
-    Telefonnummer
-    <input type="tel" bind:value={phone} placeholder="+49 …" autocomplete="tel" />
-  </label>
-  <label>
-    <input type="checkbox" bind:checked={isPublic} />
-    Telefonnummer für Fahrer/Helfer sichtbar (Anrufen-Button)
-  </label>
-
-  <h2>Push als potenzieller Fahrer (ntfy)</h2>
-  <label>
-    <input type="checkbox" bind:checked={isDriverNotify} />
-    Ich möchte Push-Benachrichtigungen bei neuen Fahrtwünschen
-  </label>
-  <label>
-    ntfy-Thema (privat wählen, z. B. mitfahrbank-meinname-xyz)
-    <input
-      type="text"
-      bind:value={ntfyTopic}
-      placeholder="ihr-geheimes-topic"
-      autocomplete="off"
-    />
-  </label>
-  <details>
-    <summary>ntfy einrichten (Kurzanleitung)</summary>
-    <ol>
-      <li>App <strong>ntfy</strong> installieren oder <a href="https://ntfy.sh" target="_blank" rel="noopener">ntfy.sh</a> nutzen</li>
-      <li>Dasselbe Thema wie oben abonnieren (Subscribe)</li>
-      <li>Hier „Push bei neuen Fahrtwünschen“ aktivieren und speichern</li>
-    </ol>
-    <p>
-      <small>
-        Selbst gehostet: Server-Admin setzt <code>NTFY_BASE_URL</code> in der
-        Mitfahrbank-.env.
-      </small>
+<div class="card-grid card-grid--2">
+  <section class="card">
+    <h3 class="card-title">Kontakt</h3>
+    <p style="margin:0 0 1rem;color:var(--text-secondary);font-size:0.9375rem">
+      Angemeldet als <strong>{user.name}</strong>
     </p>
-  </details>
+    <div class="field">
+      <label for="phone">Telefonnummer</label>
+      <input id="phone" type="tel" bind:value={phone} placeholder="+49 …" autocomplete="tel" />
+    </div>
+    <label class="field-check">
+      <input type="checkbox" bind:checked={isPublic} />
+      <span>Nummer für Fahrer/Helfer sichtbar (großer Anrufen-Button)</span>
+    </label>
+  </section>
 
-  <button class="touch-btn" disabled={saving} onclick={save}>
-    {saving ? "Speichern …" : "Speichern"}
+  <section class="card">
+    <h3 class="card-title">Push als Fahrer (ntfy)</h3>
+    <label class="field-check">
+      <input type="checkbox" bind:checked={isDriverNotify} />
+      <span>Bei neuen Fahrtwünschen Push erhalten</span>
+    </label>
+    <div class="field">
+      <label for="ntfy">Privates ntfy-Thema</label>
+      <input
+        id="ntfy"
+        type="text"
+        bind:value={ntfyTopic}
+        placeholder="z. B. mitfahrbank-meinname-xyz"
+        autocomplete="off"
+      />
+    </div>
+    <details class="panel">
+      <summary>ntfy einrichten</summary>
+      <ol style="margin:0.75rem 0 0;padding-left:1.25rem;color:var(--text-secondary)">
+        <li>App <strong>ntfy</strong> installieren oder <a href="https://ntfy.sh" target="_blank" rel="noopener">ntfy.sh</a> nutzen</li>
+        <li>Dasselbe Thema wie oben abonnieren</li>
+        <li>Hier aktivieren und speichern</li>
+      </ol>
+    </details>
+  </section>
+</div>
+
+{#if message}
+  <div class="alert alert-success" style="margin-top:1rem">{message}</div>
+{/if}
+
+<div class="btn-row btn-row--split" style="margin-top:1.5rem">
+  <button type="button" class="btn btn-primary" disabled={saving} onclick={save}>
+    {saving ? "Speichern …" : "Änderungen speichern"}
   </button>
-  {#if message}<p>{message}</p>{/if}
-
-  <button class="touch-btn secondary" onclick={onLogout}>Abmelden</button>
-</main>
+  <button type="button" class="btn btn-secondary" onclick={onLogout}>Abmelden</button>
+</div>

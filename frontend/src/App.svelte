@@ -1,17 +1,19 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, connectWs, type User } from "./lib/api";
+  import NavIcon from "./lib/NavIcon.svelte";
+  import { navItems, type AppView } from "./lib/nav";
   import Home from "./views/Home.svelte";
   import Seeker from "./views/Seeker.svelte";
   import Driver from "./views/Driver.svelte";
   import Shopping from "./views/Shopping.svelte";
   import Profile from "./views/Profile.svelte";
 
-  type View = "home" | "seeker" | "driver" | "shopping" | "profile";
+  const wappenUrl = "/wappen.png";
 
   let user = $state<User | null>(null);
   let loading = $state(true);
-  let view = $state<View>("home");
+  let view = $state<AppView>("home");
   let refreshKey = $state(0);
 
   onMount(async () => {
@@ -42,45 +44,89 @@
   function bumpRefresh() {
     refreshKey += 1;
   }
+
+  function setView(v: AppView) {
+    view = v;
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 </script>
 
-{#if loading}
-  <p>Laden …</p>
-{:else if !user}
-  <main>
-    <h1>Mitfahrbank</h1>
-    <p class="subtitle">Nachbarschaftshilfe für Ihre Gemeinde</p>
-    <button class="touch-btn" onclick={login}>Anmelden</button>
-    <p><small>Mit Authentik oder im Entwicklungsmodus per Demo-Login.</small></p>
-  </main>
-{:else}
-  <nav class="app-nav" aria-label="Hauptnavigation">
-    <button type="button" class:secondary={view !== "home"} onclick={() => (view = "home")}>
-      Start
-    </button>
-    <button type="button" class:secondary={view !== "seeker"} onclick={() => (view = "seeker")}>
-      Fahrt suchen
-    </button>
-    <button type="button" class:secondary={view !== "driver"} onclick={() => (view = "driver")}>
-      Fahrer
-    </button>
-    <button type="button" class:secondary={view !== "shopping"} onclick={() => (view = "shopping")}>
-      Einkauf
-    </button>
-    <button type="button" class:secondary={view !== "profile"} onclick={() => (view = "profile")}>
-      Profil
-    </button>
-  </nav>
+<div class="app-root">
+  <header class="topbar">
+    <div class="topbar-brand">
+      <img class="topbar-wappen" src={wappenUrl} alt="Wappen Gemeinde Stocksee" width="44" height="44" />
+      <div class="topbar-titles">
+        <h1>Mitfahrbank</h1>
+        <p>Gemeinde Stocksee</p>
+      </div>
+    </div>
+    {#if user}
+      <span class="topbar-user" title={user.name}>{user.name}</span>
+    {/if}
+  </header>
 
-  {#if view === "home"}
-    <Home {user} onNavigate={(v) => (view = v)} />
-  {:else if view === "seeker"}
-    <Seeker {refreshKey} onCreated={bumpRefresh} />
-  {:else if view === "driver"}
-    <Driver {refreshKey} />
-  {:else if view === "shopping"}
-    <Shopping {refreshKey} />
-  {:else if view === "profile"}
-    <Profile {user} onSaved={(u) => (user = u)} onLogout={logout} />
+  {#if loading}
+    <div class="main-panel">
+      <p class="spinner-text">Laden …</p>
+    </div>
+  {:else if !user}
+    <div class="login-hero">
+      <img class="wappen-lg" src={wappenUrl} alt="Wappen Gemeinde Stocksee" width="104" height="104" />
+      <h2>Willkommen in Stocksee</h2>
+      <p>Mitfahrgelegenheiten und Einkaufshilfe für unsere Gemeinde — einfach und übersichtlich.</p>
+      <button type="button" class="btn btn-primary" onclick={login}>Anmelden</button>
+      <p style="margin-top:1.25rem;font-size:0.875rem;color:var(--text-muted)">
+        Mit Authentik oder im Entwicklungsmodus per Demo-Login.
+      </p>
+    </div>
+  {:else}
+    <div class="app-layout">
+      <aside class="sidebar" aria-label="Navigation">
+        <nav class="sidebar-nav">
+          {#each navItems as item}
+            <button
+              type="button"
+              class="nav-item"
+              class:active={view === item.id}
+              onclick={() => setView(item.id)}
+            >
+              <NavIcon id={item.id} />
+              <span class="nav-label">{item.label}</span>
+            </button>
+          {/each}
+        </nav>
+      </aside>
+
+      <div class="main-panel">
+        <div class="page" class:page--wide={view === "driver" || view === "seeker"}>
+          {#if view === "home"}
+            <Home {user} onNavigate={setView} />
+          {:else if view === "seeker"}
+            <Seeker {refreshKey} onCreated={bumpRefresh} />
+          {:else if view === "driver"}
+            <Driver {refreshKey} />
+          {:else if view === "shopping"}
+            <Shopping {refreshKey} />
+          {:else if view === "profile"}
+            <Profile {user} onSaved={(u) => (user = u)} onLogout={logout} />
+          {/if}
+        </div>
+      </div>
+    </div>
+
+    <nav class="mobile-nav" aria-label="Hauptnavigation">
+      {#each navItems as item}
+        <button
+          type="button"
+          class="nav-item"
+          class:active={view === item.id}
+          onclick={() => setView(item.id)}
+          aria-current={view === item.id ? "page" : undefined}
+        >
+          <NavIcon id={item.id} />
+          <span class="nav-label">{item.short}</span>
+        </button>
+      {/each}
+    </nav>
   {/if}
-{/if}
+</div>

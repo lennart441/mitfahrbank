@@ -8,11 +8,11 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "Mitfahrbank",
+        name: "Mitfahrbank Stocksee",
         short_name: "Mitfahrbank",
-        description: "Digitale Mitfahrbank und Einkaufshilfe",
-        theme_color: "#1a5fb4",
-        background_color: "#ffffff",
+        description: "Mitfahrbank und Einkaufshilfe der Gemeinde Stocksee",
+        theme_color: "#1f5c2e",
+        background_color: "#f6faf7",
         display: "standalone",
         start_url: "/",
         lang: "de",

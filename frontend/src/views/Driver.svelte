@@ -50,50 +50,60 @@
   }
 </script>
 
-<main>
-  <h1>Fahrer-Übersicht</h1>
-  <p class="subtitle">Karte, Chat und Anruf — Push über ntfy im Profil</p>
+<header class="page-header">
+  <h2>Fahrer-Übersicht</h2>
+  <p class="page-lead">Karte, Chat und Anruf — Push-Benachrichtigungen im Profil einrichten.</p>
+</header>
 
-  {#if error}
-    <p role="alert">{error}</p>
-  {/if}
+{#if error}
+  <div class="alert alert-error" role="alert">{error}</div>
+{/if}
 
-  {#if loading}
-    <p>Laden …</p>
-  {:else if rides.length === 0}
-    <p>Aktuell keine offenen Anfragen.</p>
-  {:else}
+{#if loading}
+  <p class="spinner-text">Fahrten werden geladen …</p>
+{:else if rides.length === 0}
+  <div class="empty-state">
+    <p><strong>Keine offenen Anfragen</strong></p>
+    <p>Sobald jemand eine Fahrt sucht, erscheint sie hier.</p>
+  </div>
+{:else}
+  <div class="card-grid card-grid--2">
     {#each rides as ride}
-      <article class="card-block">
-        <p><strong>{ride.destination}</strong></p>
-        <p>Suchende/r: {ride.seeker_name}</p>
-        <p class="status-{ride.status}">
-          {ride.status === "waiting" ? "Wartet" : "Unterwegs"}
+      <article class="card">
+        <p class="card-title">{ride.destination}</p>
+        <p style="margin:0.25rem 0 0.75rem;color:var(--text-secondary)">
+          Suchende/r: <strong>{ride.seeker_name}</strong>
         </p>
+        <span class="badge {ride.status === 'waiting' ? 'badge-waiting' : 'badge-driving'}">
+          {ride.status === "waiting" ? "Wartet" : "Unterwegs"}
+        </span>
 
         {#if hasCoords(ride)}
-          <OsmMap
-            lat={ride.dest_lat!}
-            lon={ride.dest_lon!}
-            markerLabel={ride.destination}
-            interactive={ride.status === "driving"}
-          />
-          <p>
-            <a
-              href={mapsLink(ride.dest_lat!, ride.dest_lon!)}
-              target="_blank"
-              rel="noopener"
-              class="touch-btn secondary"
-              style="display:inline-block;text-align:center;margin-top:0.5rem"
-            >
-              Navigation in Karte öffnen
-            </a>
-          </p>
+          <div class="map-wrap">
+            <OsmMap
+              lat={ride.dest_lat!}
+              lon={ride.dest_lon!}
+              markerLabel={ride.destination}
+              height="220px"
+              interactive={ride.status === "driving"}
+            />
+          </div>
+          <a
+            class="btn btn-secondary"
+            style="margin-top:0.5rem"
+            href={mapsLink(ride.dest_lat!, ride.dest_lon!)}
+            target="_blank"
+            rel="noopener"
+          >
+            Route in Karte öffnen
+          </a>
         {/if}
 
         {#if ride.status === "waiting"}
           <button
-            class="touch-btn"
+            type="button"
+            class="btn btn-primary"
+            style="margin-top:1rem"
             disabled={claimingId === ride.id}
             onclick={() => claim(ride.id)}
           >
@@ -102,18 +112,25 @@
           <RideChat rideId={ride.id} {refreshKey} />
         {:else if ride.status === "driving"}
           {#if ride.seeker_phone_public && ride.seeker_phone}
-            <a class="touch-btn call-btn" href="tel:{ride.seeker_phone}">
-              Suchende anrufen: {ride.seeker_phone}
+            <a class="btn btn-call" style="margin-top:1rem" href="tel:{ride.seeker_phone}">
+              Suchende anrufen · {ride.seeker_phone}
             </a>
           {:else}
-            <p><small>Telefonnummer nicht freigegeben — bitte im Chat abstimmen.</small></p>
+            <p style="margin-top:1rem;font-size:0.9375rem;color:var(--text-muted)">
+              Telefon nicht freigegeben — bitte im Chat abstimmen.
+            </p>
           {/if}
           <RideChat rideId={ride.id} {refreshKey} />
-          <button class="touch-btn secondary" onclick={() => complete(ride.id)}>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            style="margin-top:0.65rem"
+            onclick={() => complete(ride.id)}
+          >
             Fahrt abschließen
           </button>
         {/if}
       </article>
     {/each}
-  {/if}
-</main>
+  </div>
+{/if}
