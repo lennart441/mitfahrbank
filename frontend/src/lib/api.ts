@@ -4,11 +4,20 @@ export type User = {
   phone_number: string | null;
   is_phone_public: boolean;
   is_driver_notify: boolean;
-  ntfy_topic: string | null;
+  notify_all_destinations: boolean;
+  notify_center_lat: number | null;
+  notify_center_lon: number | null;
+  notify_radius_km: number | null;
+  notify_preset_ids: string[] | null;
+  notify_time_start: string | null;
+  notify_time_end: string | null;
+  notify_days: number[] | null;
 };
 
 export type DestinationPreset = {
+  id: string;
   label: string;
+  address: string;
   lat: number;
   lon: number;
 };
@@ -84,8 +93,21 @@ export const api = {
     request<{
       destinations: DestinationPreset[];
       map: MapConfig;
-      ntfy: { enabled: boolean };
+      push: { enabled: boolean; vapidPublicKey: string | null };
     }>("/api/config"),
+  pushSubscribe: (subscription: {
+    endpoint: string;
+    keys: { p256dh: string; auth: string };
+  }) =>
+    request<{ ok: boolean }>("/api/push/subscribe", {
+      method: "POST",
+      body: JSON.stringify(subscription),
+    }),
+  pushUnsubscribe: (endpoint?: string) =>
+    request<{ ok: boolean }>("/api/push/subscribe", {
+      method: "DELETE",
+      body: JSON.stringify(endpoint ? { endpoint } : {}),
+    }),
   geocode: (q: string) =>
     request<{ label: string; lat: number; lon: number }[]>(
       `/api/geocode?q=${encodeURIComponent(q)}`,

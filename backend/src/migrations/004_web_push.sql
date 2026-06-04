@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+  id SERIAL PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  endpoint TEXT NOT NULL,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE (user_id, endpoint)
+);
+
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS notify_all_destinations BOOLEAN DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS notify_center_lat DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS notify_center_lon DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS notify_radius_km DOUBLE PRECISION,
+  ADD COLUMN IF NOT EXISTS notify_preset_ids TEXT[],
+  ADD COLUMN IF NOT EXISTS notify_time_start TIME,
+  ADD COLUMN IF NOT EXISTS notify_time_end TIME,
+  ADD COLUMN IF NOT EXISTS notify_days SMALLINT[] DEFAULT ARRAY[0,1,2,3,4,5,6]::SMALLINT[];

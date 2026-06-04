@@ -23,11 +23,3 @@ export async function canAccessRideChat(
   }
   return false;
 }
-
-export async function getDriverNotifyTopics(): Promise<string[]> {
-  const { rows } = await pool.query<{ ntfy_topic: string }>(
-    `SELECT ntfy_topic FROM users
-     WHERE is_driver_notify = TRUE AND ntfy_topic IS NOT NULL AND ntfy_topic != ''`,
-  );
-  return rows.map((r) => r.ntfy_topic);
-}

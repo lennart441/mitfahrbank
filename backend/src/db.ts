@@ -15,6 +15,14 @@ export type User = {
   is_phone_public: boolean;
   is_driver_notify: boolean;
   ntfy_topic: string | null;
+  notify_all_destinations: boolean;
+  notify_center_lat: number | null;
+  notify_center_lon: number | null;
+  notify_radius_km: number | null;
+  notify_preset_ids: string[] | null;
+  notify_time_start: string | null;
+  notify_time_end: string | null;
+  notify_days: number[] | null;
   created_at: Date;
 };
 

@@ -23,7 +23,11 @@
   let searchResults = $state<{ label: string; lat: number; lon: number }[]>(
     [],
   );
+  let labelSearchResults = $state<{ label: string; lat: number; lon: number }[]>(
+    [],
+  );
   let searching = $state(false);
+  let labelSearching = $state(false);
   let customLabel = $state("");
   let labelTouched = $state(false);
   let resolving = $state(false);
@@ -45,40 +49,60 @@
     onSelect({ label: p.label, lat: p.lat, lon: p.lon });
   }
 
-  async function runSearch(q: string) {
+  async function runSearch(q: string, target: "map" | "label") {
     if (q.length < 3) {
-      searchResults = [];
+      if (target === "map") searchResults = [];
+      else labelSearchResults = [];
       return;
     }
-    searching = true;
+    if (target === "map") searching = true;
+    else labelSearching = true;
     try {
-      searchResults = await api.geocode(q);
+      const results = await api.geocode(q);
+      if (target === "map") searchResults = results;
+      else labelSearchResults = results;
     } catch {
-      searchResults = [];
+      if (target === "map") searchResults = [];
+      else labelSearchResults = [];
     } finally {
-      searching = false;
+      if (target === "map") searching = false;
+      else labelSearching = false;
     }
   }
 
   function onSearchInput() {
     clearTimeout(searchTimer);
-    searchTimer = setTimeout(() => runSearch(searchQuery), 400);
+    searchTimer = setTimeout(() => runSearch(searchQuery, "map"), 400);
   }
 
-  function applySearchResult(r: { label: string; lat: number; lon: number }) {
+  async function searchFromLabel() {
+    const q = customLabel.trim();
+    if (q.length < 3) return;
+    await runSearch(q, "label");
+  }
+
+  function applySearchResult(
+    r: { label: string; lat: number; lon: number },
+    source: "map" | "label",
+  ) {
     customLabel = r.label;
-    labelTouched = false;
+    labelTouched = true;
     lastResolvedFromAddress = true;
     pickLat = r.lat;
     pickLon = r.lon;
-    searchResults = [];
-    searchQuery = "";
+    if (source === "map") {
+      searchResults = [];
+      searchQuery = "";
+    } else {
+      labelSearchResults = [];
+    }
     marker?.setLatLng([r.lat, r.lon]);
     map?.setView([r.lat, r.lon], 15);
   }
 
   function onLabelInput() {
     labelTouched = true;
+    labelSearchResults = [];
   }
 
   async function resolveLabelForPick(lat: number, lon: number) {
@@ -149,6 +173,7 @@
     mode = "map";
     labelTouched = false;
     customLabel = "";
+    labelSearchResults = [];
   }
 
   $effect(() => {
@@ -169,8 +194,9 @@
   <p class="card-title" style="margin-top:0">Wohin möchten Sie?</p>
   <div class="preset-list">
     {#each presets as p}
-      <button type="button" class="btn btn-secondary" onclick={() => selectPreset(p)}>
-        {p.label}
+      <button type="button" class="btn btn-secondary preset-btn" onclick={() => selectPreset(p)}>
+        <span class="preset-btn__title">{p.label}</span>
+        <span class="preset-btn__addr">{p.address}</span>
       </button>
     {/each}
   </div>
@@ -180,7 +206,7 @@
 {:else}
   <p class="card-title" style="margin-top:0">Ziel auf der Karte</p>
   <div class="field">
-    <label for="geo-search">Ort suchen</label>
+    <label for="geo-search">Ort suchen (OpenStreetMap)</label>
     <input
       id="geo-search"
       type="search"
@@ -197,7 +223,7 @@
     <ul class="search-results">
       {#each searchResults as r}
         <li>
-          <button type="button" onclick={() => applySearchResult(r)}>
+          <button type="button" onclick={() => applySearchResult(r, "map")}>
             {r.label}
           </button>
         </li>
@@ -209,22 +235,46 @@
 
   <div class="field">
     <label for="custom-label">Zielbezeichnung</label>
-    <input
-      id="custom-label"
-      bind:value={customLabel}
-      oninput={onLabelInput}
-      placeholder={resolving ? "Adresse wird ermittelt …" : "Adresse oder Koordinaten"}
-    />
+    <div class="btn-row" style="margin:0;align-items:stretch">
+      <input
+        id="custom-label"
+        bind:value={customLabel}
+        oninput={onLabelInput}
+        placeholder={resolving ? "Adresse wird ermittelt …" : "Adresse eingeben …"}
+      />
+      <button
+        type="button"
+        class="btn btn-secondary"
+        disabled={labelSearching || customLabel.trim().length < 3}
+        onclick={searchFromLabel}
+      >
+        {labelSearching ? "…" : "OSM suchen"}
+      </button>
+    </div>
   </div>
+  {#if labelSearchResults.length > 0}
+    <p style="font-size:0.875rem;color:var(--text-secondary);margin:0 0 0.35rem">
+      Treffer — bitte das richtige Ziel auswählen:
+    </p>
+    <ul class="search-results">
+      {#each labelSearchResults as r}
+        <li>
+          <button type="button" onclick={() => applySearchResult(r, "label")}>
+            {r.label}
+          </button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
   <p style="font-size:0.875rem;color:var(--text-muted);margin:0 0 1rem">
     {#if resolving}
       Adresse wird ermittelt …
     {:else if lastResolvedFromAddress}
-      Adresse in der Nähe erkannt (max. 30&nbsp;m). Sie können den Text anpassen.
+      Adresse in der Nähe erkannt (max. 30&nbsp;m). Oder Adresse eingeben und „OSM suchen“.
     {:else if customLabel}
-      Keine nahe Adresse gefunden — Koordinaten werden verwendet. Text ist anpassbar.
+      Keine nahe Adresse am Kartenpunkt — Adresse eingeben und über OpenStreetMap suchen.
     {:else}
-      Tippen Sie auf die Karte oder ziehen Sie die Markierung.
+      Tippen Sie auf die Karte, ziehen Sie die Markierung, oder suchen Sie eine Adresse.
     {/if}
   </p>
 

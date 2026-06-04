@@ -769,6 +769,87 @@ a:hover {
   gap: 0.65rem;
 }
 
+.preset-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.2rem;
+  text-align: left;
+  height: auto;
+  padding: 0.85rem 1rem;
+}
+
+.preset-btn__title {
+  font-weight: 600;
+}
+
+.preset-btn__addr {
+  font-size: 0.8125rem;
+  font-weight: 400;
+  color: var(--text-secondary);
+}
+
+/* —— PWA install —— */
+.pwa-install-banner {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  background: var(--brand-soft);
+  border-bottom: 1px solid var(--border);
+  font-size: 0.9375rem;
+}
+
+.pwa-install-banner p {
+  margin: 0 0 0.65rem;
+}
+
+.pwa-install-banner .btn-row {
+  margin: 0;
+}
+
+/* —— Driver notify profile —— */
+.notify-fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0 0;
+}
+
+.notify-fieldset legend {
+  font-weight: 600;
+  padding: 0 0.25rem;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.day-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.35rem;
+}
+
+.day-chip {
+  min-width: 2.5rem;
+  min-height: 2.5rem;
+  padding: 0.35rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.day-chip.active {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+
 /* —— Details / misc —— */
 details.panel {
   background: var(--bg);

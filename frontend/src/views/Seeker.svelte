@@ -142,7 +142,7 @@
 {:else}
   <section class="card">
     <div class="alert alert-success" role="status">
-      <strong>Anfrage gesendet.</strong> Registrierte Fahrer werden per Push (ntfy) informiert.
+      <strong>Anfrage gesendet.</strong> Registrierte Fahrer werden per Push informiert.
     </div>
     <button type="button" class="btn btn-primary" onclick={reset}>Weitere Fahrt anfragen</button>
   </section>

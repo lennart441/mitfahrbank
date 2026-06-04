@@ -24,9 +24,13 @@ export const config = {
     defaultLon: Number(process.env.MAP_DEFAULT_LON ?? 10.3),
     defaultZoom: Number(process.env.MAP_DEFAULT_ZOOM ?? 11),
   },
-  ntfy: {
-    enabled: process.env.NTFY_ENABLED !== "false",
-    baseUrl: process.env.NTFY_BASE_URL ?? "https://ntfy.sh",
+  push: {
+    enabled: process.env.WEB_PUSH_ENABLED !== "false",
+    publicKey: process.env.VAPID_PUBLIC_KEY ?? "",
+    privateKey: process.env.VAPID_PRIVATE_KEY ?? "",
+    subject:
+      process.env.VAPID_SUBJECT ??
+      "mailto:mitfahrbank@example.local",
   },
 };
 

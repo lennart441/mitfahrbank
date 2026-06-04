@@ -1,6 +1,6 @@
 # Mitfahrbank
 
-Digitale **Mitfahrbank** mit **Einkaufshilfe** für Gemeinden — PWA mit seniorengerechtem UI (Pico.css), **OpenStreetMap**, **ntfy**-Push für Fahrer, Chat & Telefon.
+Digitale **Mitfahrbank** mit **Einkaufshilfe** für Gemeinden — installierbare **PWA**, seniorengerechtes UI, **OpenStreetMap**, **Web-Push** für Fahrer, Chat & Telefon.
 
 ## Schnellstart (Entwicklung)
 
@@ -14,31 +14,46 @@ cd frontend && npm install && npm run dev
 
 Ohne OIDC: **Anmelden** → Demo-Login.
 
+Für Push in der Entwicklung VAPID-Schlüssel in `.env` setzen (siehe unten). HTTPS ist für Push in Produktion erforderlich; lokal funktioniert `localhost`.
+
 ## Kurzwahl-Ziele (fest im Code)
 
-- Bornhöved Lidl  
-- Plön Innenstadt  
-- Ascheberg Edeka / Aldi  
-- plus **freie Eingabe** über Karte/Suche (Nominatim)
+- Lidl Bornhöved — Kieler Tor 25, 24619 Bornhöved
+- Plön Innenstadt — Lange Str. 9-23, 24306 Plön
+- Ascheberg Edeka / Aldi — Langenrade 2, 24326 Ascheberg (Holstein)
+- plus **freie Eingabe** über Karte und OpenStreetMap-Suche (Nominatim)
 
 Anpassen: `backend/src/destinations.ts`
 
-## ntfy (Push für Fahrer)
+## Web Push für Fahrer
 
-1. Potenzielle Fahrer: im **Profil** „Push bei neuen Fahrtwünschen“ aktivieren und ein **privates Thema** eintragen (z. B. `mitfahrbank-max-geheim-42`).
-2. Dieselbes Thema in der **ntfy-App** abonnieren (Subscribe).
-3. Bei neuer Fahrtanfrage sendet der Server eine Nachricht an alle registrierten Fahrer-Themen.
+1. **VAPID-Schlüssel** erzeugen und in `.env` eintragen:
+
+   ```bash
+   cd backend && node --input-type=module -e "import w from 'web-push'; console.log(w.generateVAPIDKeys())"
+   ```
+
+2. Potenzielle Fahrer: App **auf den Startbildschirm installieren**, im **Profil** Push aktivieren, Regionen und Zeiten festlegen, Benachrichtigungen erlauben.
+
+3. Bei neuer Fahrtanfrage sendet der Server Web-Push an alle passenden Fahrer-Abonnements (Filter nach Region und Uhrzeit).
 
 Umgebungsvariablen:
 
-- `NTFY_BASE_URL` — z. B. `https://ntfy.sh` oder `https://ntfy.ihre-domain.de`
-- `NTFY_ENABLED=false` — Push abschalten
+- `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` — Schlüsselpaar
+- `VAPID_SUBJECT` — z. B. `mailto:mitfahrbank@gemeinde.de`
+- `WEB_PUSH_ENABLED=false` — Push abschalten
+
+## PWA installieren
+
+- Chrome/Edge: Menü → „App installieren“ oder Banner in der App
+- iOS Safari: Teilen → „Zum Home-Bildschirm“
+- Icons: `frontend/public/pwa-*.png` (aus `wappen.png` generiert)
 
 ## Karte & Telefon & Chat
 
-- **Suchende:** Kurzwahl oder OSM-Karte, Bestätigung mit Kartenpreview.
-- **Fahrer:** Karte zum Ziel, Link zu OpenStreetMap, **Chat**, **Anrufen** (`tel:`) wenn Nummer freigegeben.
-- **Chat:** WebSocket-Aktualisierung; Nach Abschluss der Fahrt werden Chat-Daten gelöscht.
+- **Suchende:** Kurzwahl mit Adresse oder OSM-Karte; Freitext → „OSM suchen“ → Treffer auswählen
+- **Fahrer:** Karte zum Ziel, Link zu OpenStreetMap, **Chat**, **Anrufen** (`tel:`) wenn Nummer freigegeben
+- **Chat:** WebSocket-Aktualisierung; nach Abschluss der Fahrt werden Chat-Daten gelöscht
 
 ## Produktion
 
@@ -58,8 +73,8 @@ OAuth2/OIDC — siehe `.env.example` (`OIDC_ISSUER`, `OIDC_CLIENT_ID`, …).
 |--------|--------|
 | OIDC / Authentik + Dev-Login | ✓ |
 | OSM-Karte (Leaflet) + Geocoding-Proxy | ✓ |
-| Kurzwahl + freie Zieleingabe | ✓ |
-| ntfy Push für registrierte Fahrer | ✓ |
+| Kurzwahl + freie Zieleingabe (OSM-Suche) | ✓ |
+| Web Push für registrierte Fahrer (Region & Zeit) | ✓ |
 | Chat (Fahrten) + Telefon | ✓ |
 | Einkaufshilfe | ✓ |
-| PWA | ✓ |
+| Installierbare PWA | ✓ |

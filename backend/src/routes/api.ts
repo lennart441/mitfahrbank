@@ -3,11 +3,13 @@ import { config } from "../config.js";
 import { pool, type RideRequest, type ShoppingRequest, type User } from "../db.js";
 import { getUserById, requireAuth } from "../auth.js";
 import { reverseGeocode, searchPlaces } from "../geocode.js";
-import { notifyDrivers } from "../ntfy.js";
 import {
-  canAccessRideChat,
-  getDriverNotifyTopics,
-} from "../rides.js";
+  deletePushSubscription,
+  notifyDriversWebPush,
+  pushEnabled,
+  upsertPushSubscription,
+} from "../push.js";
+import { canAccessRideChat } from "../rides.js";
 
 type RideWithNames = RideRequest & {
   seeker_name: string;
@@ -32,7 +34,10 @@ export async function registerApiRoutes(app: FastifyInstance) {
   app.get("/api/config", async () => ({
     destinations: config.destinations,
     map: config.map,
-    ntfy: { enabled: config.ntfy.enabled },
+    push: {
+      enabled: pushEnabled(),
+      vapidPublicKey: config.push.publicKey || null,
+    },
   }));
 
   app.get("/api/geocode", async (request, reply) => {
@@ -83,30 +88,32 @@ export async function registerApiRoutes(app: FastifyInstance) {
     const auth = requireAuth(request);
     if (!auth) return reply.code(401).send({ error: "Unauthorized" });
 
-    const body = request.body as {
-      phone_number?: string | null;
-      is_phone_public?: boolean;
-      name?: string;
-      is_driver_notify?: boolean;
-      ntfy_topic?: string | null;
+    const body = request.body as Record<string, unknown>;
+
+    const sets: string[] = [];
+    const params: unknown[] = [auth.userId];
+
+    const add = (col: string, key: string, nullable = false) => {
+      if (!(key in body)) return;
+      params.push(body[key] ?? (nullable ? null : body[key]));
+      sets.push(`${col} = $${params.length}`);
     };
 
-    const sets = [
-      "phone_number = COALESCE($2, phone_number)",
-      "is_phone_public = COALESCE($3, is_phone_public)",
-      "name = COALESCE($4, name)",
-      "is_driver_notify = COALESCE($5, is_driver_notify)",
-    ];
-    const params: unknown[] = [
-      auth.userId,
-      body.phone_number ?? null,
-      body.is_phone_public ?? null,
-      body.name ?? null,
-      body.is_driver_notify ?? null,
-    ];
-    if (body.ntfy_topic !== undefined) {
-      params.push(body.ntfy_topic?.trim() || null);
-      sets.push(`ntfy_topic = $${params.length}`);
+    add("phone_number", "phone_number", true);
+    add("is_phone_public", "is_phone_public");
+    add("name", "name", true);
+    add("is_driver_notify", "is_driver_notify");
+    add("notify_all_destinations", "notify_all_destinations");
+    add("notify_center_lat", "notify_center_lat", true);
+    add("notify_center_lon", "notify_center_lon", true);
+    add("notify_radius_km", "notify_radius_km", true);
+    add("notify_preset_ids", "notify_preset_ids", true);
+    add("notify_time_start", "notify_time_start", true);
+    add("notify_time_end", "notify_time_end", true);
+    add("notify_days", "notify_days", true);
+
+    if (!sets.length) {
+      return reply.code(400).send({ error: "No fields to update" });
     }
 
     const { rows } = await pool.query<User>(
@@ -114,6 +121,34 @@ export async function registerApiRoutes(app: FastifyInstance) {
       params,
     );
     return rows[0];
+  });
+
+  app.post("/api/push/subscribe", async (request, reply) => {
+    const auth = requireAuth(request);
+    if (!auth) return reply.code(401).send({ error: "Unauthorized" });
+    if (!pushEnabled()) {
+      return reply.code(503).send({ error: "Web push not configured" });
+    }
+
+    const body = request.body as {
+      endpoint: string;
+      keys: { p256dh: string; auth: string };
+    };
+    if (!body?.endpoint || !body.keys?.p256dh || !body.keys?.auth) {
+      return reply.code(400).send({ error: "Invalid subscription" });
+    }
+
+    await upsertPushSubscription(auth.userId, body);
+    return { ok: true };
+  });
+
+  app.delete("/api/push/subscribe", async (request, reply) => {
+    const auth = requireAuth(request);
+    if (!auth) return reply.code(401).send({ error: "Unauthorized" });
+
+    const endpoint = (request.body as { endpoint?: string })?.endpoint;
+    await deletePushSubscription(auth.userId, endpoint);
+    return { ok: true };
   });
 
   app.post("/api/ride-requests", async (request, reply) => {
@@ -141,12 +176,15 @@ export async function registerApiRoutes(app: FastifyInstance) {
       [auth.userId, destination.trim(), lat, lon],
     );
 
-    const topics = await getDriverNotifyTopics();
     const seeker = await getUserById(auth.userId);
-    void notifyDrivers(
+    void notifyDriversWebPush(
       "Neue Mitfahranfrage",
       `${seeker?.name ?? "Jemand"} möchte nach: ${destination.trim()}`,
-      topics.filter((t) => t !== (seeker?.ntfy_topic ?? "")),
+      "/",
+      lat,
+      lon,
+      destination.trim(),
+      auth.userId,
     );
 
     app.broadcast?.({ type: "ride_requests_changed" });

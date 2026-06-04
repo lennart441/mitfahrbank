@@ -92,9 +92,13 @@ export async function searchPlaces(
   const res = await nominatimFetch(url);
   if (!res.ok) throw new Error("Geocoding failed");
 
-  const data = (await res.json()) as NominatimReverseResult[];
+  const data = (await res.json()) as (NominatimResult & {
+    address?: NominatimAddress;
+  })[];
   return data.map((r) => ({
-    label: formatShortAddress(r.address ?? {}) ?? shortenDisplayName(r.display_name),
+    label:
+      formatShortAddress(r.address ?? {}) ??
+      shortenDisplayName(r.display_name),
     lat: Number(r.lat),
     lon: Number(r.lon),
   }));

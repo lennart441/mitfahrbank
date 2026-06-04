@@ -33,7 +33,10 @@ services:
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
       OIDC_REDIRECT_URI: ${OIDC_REDIRECT_URI:-http://localhost:3000/auth/callback}
-      COMMUNITY_DESTINATIONS: ${COMMUNITY_DESTINATIONS:-Bahnhof,Supermarkt,Ärztezentrum}
+      WEB_PUSH_ENABLED: ${WEB_PUSH_ENABLED:-true}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:mitfahrbank@example.local}
     depends_on:
       db:
         condition: service_healthy

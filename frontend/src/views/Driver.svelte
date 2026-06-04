@@ -60,7 +60,7 @@
 
 <header class="page-header">
   <h2>Fahrer-Übersicht</h2>
-  <p class="page-lead">Karte, Chat und Anruf — Push-Benachrichtigungen im Profil einrichten.</p>
+  <p class="page-lead">Karte, Chat und Anruf — Push-Benachrichtigungen im Profil (App installieren).</p>
 </header>
 
 {#if error}

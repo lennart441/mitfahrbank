@@ -8,6 +8,7 @@
   import Driver from "./views/Driver.svelte";
   import Shopping from "./views/Shopping.svelte";
   import Profile from "./views/Profile.svelte";
+  import PwaInstall from "./lib/PwaInstall.svelte";
 
   const wappenUrl = "/wappen.png";
 
@@ -80,6 +81,7 @@
       </p>
     </div>
   {:else}
+    <PwaInstall />
     <div class="app-layout">
       <aside class="sidebar" aria-label="Navigation">
         <nav class="sidebar-nav">

@@ -6,7 +6,12 @@ export default defineConfig({
   plugins: [
     svelte(),
     VitePWA({
+      strategies: "injectManifest",
+      srcDir: "src",
+      filename: "sw.ts",
       registerType: "autoUpdate",
+      injectRegister: "auto",
+      includeAssets: ["wappen.png", "apple-touch-icon.png"],
       manifest: {
         name: "Mitfahrbank Stocksee",
         short_name: "Mitfahrbank",
@@ -14,23 +19,35 @@ export default defineConfig({
         theme_color: "#1f5c2e",
         background_color: "#f6faf7",
         display: "standalone",
+        orientation: "portrait",
         start_url: "/",
+        scope: "/",
         lang: "de",
+        categories: ["social", "navigation"],
         icons: [
           {
             src: "pwa-192x192.png",
             sizes: "192x192",
             type: "image/png",
+            purpose: "any",
           },
           {
             src: "pwa-512x512.png",
             sizes: "512x512",
             type: "image/png",
+            purpose: "any",
+          },
+          {
+            src: "pwa-512x512.png",
+            sizes: "512x512",
+            type: "image/png",
+            purpose: "maskable",
           },
         ],
       },
-      workbox: {
-        navigateFallback: "/index.html",
+      devOptions: {
+        enabled: true,
+        type: "module",
       },
     }),
   ],
