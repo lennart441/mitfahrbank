@@ -1,0 +1,77 @@
+:root {
+  --pico-font-size: 120%;
+  --pico-line-height: 1.6;
+  --brand: #1a5fb4;
+  --pico-primary: var(--brand);
+  --pico-primary-background: var(--brand);
+  --pico-primary-border: var(--brand);
+  --pico-primary-hover: #15539e;
+}
+
+body {
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.touch-btn {
+  display: block;
+  width: 100%;
+  min-height: 3.5rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  text-align: center;
+}
+
+.touch-btn.secondary {
+  --pico-background-color: var(--pico-secondary-background);
+}
+
+.card-block {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  border: 2px solid var(--pico-muted-border-color);
+  border-radius: var(--pico-border-radius);
+}
+
+.status-waiting {
+  color: #b45309;
+  font-weight: 700;
+}
+.status-driving {
+  color: #1a5fb4;
+  font-weight: 700;
+}
+.status-completed {
+  color: #15803d;
+  font-weight: 700;
+}
+
+nav.app-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1.5rem;
+}
+
+nav.app-nav a,
+nav.app-nav button {
+  flex: 1 1 auto;
+  min-height: 3rem;
+}
+
+h1 {
+  font-size: 1.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.subtitle {
+  color: var(--pico-muted-color);
+  margin-bottom: 1.5rem;
+}
+
+.call-btn {
+  font-size: 1.5rem;
+  min-height: 4rem;
+}

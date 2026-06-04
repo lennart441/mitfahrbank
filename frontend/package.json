@@ -1,0 +1,23 @@
+{
+  "name": "mitfahrbank-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@picocss/pico": "^2.0.6",
+    "leaflet": "^1.9.4"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@types/leaflet": "^1.9.21",
+    "@vite-pwa/assets-generator": "^0.2.6",
+    "svelte": "^5.20.5",
+    "vite": "^6.2.2",
+    "vite-plugin-pwa": "^0.21.1"
+  }
+}
