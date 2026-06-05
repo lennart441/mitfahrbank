@@ -180,7 +180,7 @@ export async function getSubscriptionsForRide(
   const ids = eligible.map((d) => d.id);
   const { rows } = await pool.query<PushSubscriptionRow>(
     `SELECT id, user_id, endpoint, p256dh, auth
-     FROM push_subscriptions WHERE user_id = ANY($1::uuid[])`,
+     FROM push_subscriptions WHERE user_id = ANY($1::text[])`,
     [ids],
   );
   return rows;

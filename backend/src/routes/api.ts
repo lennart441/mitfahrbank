@@ -278,17 +278,15 @@ export async function registerApiRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: "Invalid status" });
     }
 
+    const archive = status === "completed" || status === "cancelled";
     const { rows } = await pool.query<RideRequest>(
       `UPDATE ride_requests
        SET status = $3,
            updated_at = CURRENT_TIMESTAMP,
-           archived_at = CASE
-             WHEN $3 IN ('completed', 'cancelled') THEN CURRENT_TIMESTAMP
-             ELSE archived_at
-           END
+           archived_at = CASE WHEN $4 THEN CURRENT_TIMESTAMP ELSE archived_at END
        WHERE id = $1 AND (user_id = $2 OR driver_id = $2) AND archived_at IS NULL
        RETURNING *`,
-      [id, auth.userId, status],
+      [id, auth.userId, status, archive],
     );
 
     if (!rows[0]) {
