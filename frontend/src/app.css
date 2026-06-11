@@ -640,9 +640,16 @@ a:hover {
   color: var(--success);
 }
 
-/* —— Login hero —— */
-.login-hero {
+/* —— Login —— */
+.login-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   min-height: calc(100vh - var(--header-h));
+}
+
+.login-hero {
+  flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -651,6 +658,38 @@ a:hover {
   padding: 2rem 1.5rem;
   max-width: 28rem;
   margin: 0 auto;
+  width: 100%;
+}
+
+.login-footer {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1rem 1.5rem 1.25rem;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.login-footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.login-footer-sep {
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.login-footer-logo {
+  flex-shrink: 0;
+  width: auto;
+  height: 13rem;
+  object-fit: contain;
+  margin-left: auto;
 }
 
 .login-hero .wappen-lg {

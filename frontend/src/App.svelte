@@ -11,6 +11,7 @@
   import PwaInstall from "./lib/PwaInstall.svelte";
 
   const wappenUrl = "/wappen.png";
+  const bmlehLogoUrl = "/bmleh.svg";
 
   let user = $state<User | null>(null);
   let loading = $state(true);
@@ -71,14 +72,36 @@
       <p class="spinner-text">Laden …</p>
     </div>
   {:else if !user}
-    <div class="login-hero">
-      <img class="wappen-lg" src={wappenUrl} alt="Wappen Gemeinde Stocksee" width="104" height="104" />
-      <h2>Willkommen in Stocksee</h2>
-      <p>Mitfahrgelegenheiten und Einkaufshilfe für unsere Gemeinde — einfach und übersichtlich.</p>
-      <button type="button" class="btn btn-primary" onclick={login}>Anmelden</button>
-      <p style="margin-top:1.25rem;font-size:0.875rem;color:var(--text-muted)">
-        Mit Authentik oder im Entwicklungsmodus per Demo-Login.
-      </p>
+    <div class="login-shell">
+      <div class="login-hero">
+        <img class="wappen-lg" src={wappenUrl} alt="Wappen Gemeinde Stocksee" width="104" height="104" />
+        <h2>Willkommen in Stocksee</h2>
+        <p>Mitfahrgelegenheiten und Einkaufshilfe für unsere Gemeinde — einfach und übersichtlich.</p>
+        <button type="button" class="btn btn-primary" onclick={login}>Anmelden</button>
+        <p style="margin-top:1.25rem;font-size:0.875rem;color:var(--text-muted)">
+          Mit Authentik oder im Entwicklungsmodus per Demo-Login.
+        </p>
+      </div>
+      <footer class="login-footer">
+        <nav class="login-footer-links" aria-label="Gemeinde Stocksee">
+          <a href="https://www.stocksee.de/" target="_blank" rel="noopener noreferrer">Website</a>
+          <span class="login-footer-sep" aria-hidden="true">·</span>
+          <a href="https://www.stocksee.de/impressum/index.php" target="_blank" rel="noopener noreferrer"
+            >Impressum</a
+          >
+          <span class="login-footer-sep" aria-hidden="true">·</span>
+          <a href="https://www.stocksee.de/datenschutz/index.php" target="_blank" rel="noopener noreferrer"
+            >Datenschutzerklärung</a
+          >
+        </nav>
+        <img
+          class="login-footer-logo"
+          src={bmlehLogoUrl}
+          alt="BMLEH – Bayerisches Ministerium für Ernährung, Landwirtschaft und Heimat"
+          width="215"
+          height="175"
+        />
+      </footer>
     </div>
   {:else}
     <PwaInstall />
