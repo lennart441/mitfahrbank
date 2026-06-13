@@ -5,3 +5,5 @@ build/
 *.log
 .DS_Store
 frontend/dev-dist/
+frontend/android/app/google-services.json
+*.keystore

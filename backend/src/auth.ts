@@ -3,12 +3,14 @@ import type {
   FastifyReply,
   FastifyRequest,
 } from "fastify";
+import { randomUUID } from "node:crypto";
 import * as client from "openid-client";
 import { config, oidcConfigured } from "./config.js";
 import { pool, type User } from "./db.js";
 
 const OAUTH_STATE_COOKIE = "oauth_state";
 const OAUTH_NONCE_COOKIE = "oauth_nonce";
+const MOBILE_AUTH_SCHEME = "de.stocksee.mitfahrbank";
 
 function oauthCookieOptions() {
   return {
@@ -51,6 +53,8 @@ declare module "@fastify/session" {
   interface FastifySessionObject {
     oauthState?: string;
     oauthNonce?: string;
+    oauthNative?: boolean;
+    oauthBrowser?: boolean;
     userId?: string;
   }
 }
@@ -99,17 +103,84 @@ export function requireAuth(
   return { userId };
 }
 
+function isNativeRequest(request: FastifyRequest): boolean {
+  return (
+    request.session.oauthNative === true ||
+    (request.query as { native?: string }).native === "1"
+  );
+}
+
+function isBrowserRequest(request: FastifyRequest): boolean {
+  return (
+    request.session.oauthBrowser === true ||
+    (request.query as { browser?: string }).browser === "1"
+  );
+}
+
+async function createMobileAuthToken(userId: string): Promise<string> {
+  const token = randomUUID();
+  await pool.query(
+    `INSERT INTO mobile_auth_tokens (token, user_id, expires_at)
+     VALUES ($1, $2, now() + interval '5 minutes')`,
+    [token, userId],
+  );
+  return token;
+}
+
+async function consumeMobileAuthToken(token: string): Promise<string | null> {
+  const { rows } = await pool.query<{ user_id: string }>(
+    `DELETE FROM mobile_auth_tokens
+     WHERE token = $1 AND expires_at > now()
+     RETURNING user_id`,
+    [token],
+  );
+  return rows[0]?.user_id ?? null;
+}
+
+async function finishLogin(
+  request: FastifyRequest,
+  reply: FastifyReply,
+  userId: string,
+): Promise<void> {
+  const native = isNativeRequest(request);
+  const browser = isBrowserRequest(request);
+  delete request.session.oauthNative;
+  delete request.session.oauthBrowser;
+
+  if (native && browser) {
+    const token = await createMobileAuthToken(userId);
+    return reply.redirect(
+      `${MOBILE_AUTH_SCHEME}://auth/success?token=${encodeURIComponent(token)}`,
+    );
+  }
+
+  if (native) {
+    return reply.redirect("/index.html");
+  }
+
+  return reply.redirect("/");
+}
+
 export async function registerAuthRoutes(app: FastifyInstance) {
   app.get("/auth/login", async (request, reply) => {
     const oidc = await getOidcConfig();
+    const native = (request.query as { native?: string }).native === "1";
+    const browser = (request.query as { browser?: string }).browser === "1";
+
     if (!oidc) {
-      return reply.redirect("/auth/dev-login");
+      const qs = new URLSearchParams();
+      if (native) qs.set("native", "1");
+      if (browser) qs.set("browser", "1");
+      const suffix = qs.toString() ? `?${qs}` : "";
+      return reply.redirect(`/auth/dev-login${suffix}`);
     }
 
     const state = client.randomState();
     const nonce = client.randomNonce();
     request.session.oauthState = state;
     request.session.oauthNonce = nonce;
+    request.session.oauthNative = native;
+    request.session.oauthBrowser = browser;
     storeOAuthInCookies(reply, state, nonce);
     await request.session.save();
 
@@ -164,7 +235,7 @@ export async function registerAuthRoutes(app: FastifyInstance) {
       clearOAuthCookies(reply);
       await request.session.save();
 
-      return reply.redirect("/");
+      return finishLogin(request, reply, sub);
     } catch (err) {
       clearOAuthCookies(reply);
       request.log.error(err);
@@ -175,12 +246,39 @@ export async function registerAuthRoutes(app: FastifyInstance) {
   /** Dev-only login when Authentik is not configured */
   app.get("/auth/dev-login", async (request, reply) => {
     if (oidcConfigured()) {
-      return reply.redirect("/auth/login");
+      const qs = new URLSearchParams();
+      const q = request.query as { native?: string; browser?: string };
+      if (q.native === "1") qs.set("native", "1");
+      if (q.browser === "1") qs.set("browser", "1");
+      const suffix = qs.toString() ? `?${qs}` : "";
+      return reply.redirect(`/auth/login${suffix}`);
     }
+
     const devId = "00000000-0000-4000-8000-000000000001";
     await upsertUserFromClaims(devId, "Entwickler (Demo)");
     request.session.userId = devId;
-    return reply.redirect("/");
+    request.session.oauthNative =
+      (request.query as { native?: string }).native === "1";
+    request.session.oauthBrowser =
+      (request.query as { browser?: string }).browser === "1";
+    await request.session.save();
+    return finishLogin(request, reply, devId);
+  });
+
+  app.post("/auth/mobile-exchange", async (request, reply) => {
+    const token = (request.body as { token?: string })?.token?.trim();
+    if (!token) {
+      return reply.code(400).send({ error: "token required" });
+    }
+
+    const userId = await consumeMobileAuthToken(token);
+    if (!userId) {
+      return reply.code(401).send({ error: "Invalid or expired token" });
+    }
+
+    request.session.userId = userId;
+    await request.session.save();
+    return { ok: true };
   });
 
   app.post("/auth/logout", async (request, reply) => {

@@ -2,7 +2,17 @@ import "./app.css";
 import { mount } from "svelte";
 import { registerSW } from "virtual:pwa-register";
 import App from "./App.svelte";
+import { initNativeAuthListener, normalizeNativeEntryUrl } from "./lib/auth";
+import { initNativePushListeners } from "./lib/nativePush";
+import { isNativeApp } from "./lib/platform";
 
-registerSW({ immediate: true });
+if (!isNativeApp()) {
+  registerSW({ immediate: true });
+} else {
+  void initNativeAuthListener();
+  void initNativePushListeners();
+}
 
-mount(App, { target: document.getElementById("app")! });
+if (!normalizeNativeEntryUrl()) {
+  mount(App, { target: document.getElementById("app")! });
+}

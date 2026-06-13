@@ -1,12 +1,16 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { isNativeApp } from "./platform";
 
   let deferredPrompt = $state<Event | null>(null);
   let dismissed = $state(false);
   let isStandalone = $state(false);
+  let native = $state(false);
 
   onMount(() => {
+    native = isNativeApp();
     isStandalone =
+      native ||
       window.matchMedia("(display-mode: standalone)").matches ||
       (navigator as Navigator & { standalone?: boolean }).standalone === true;
 
@@ -36,7 +40,7 @@
   }
 </script>
 
-{#if !isStandalone && deferredPrompt && !dismissed}
+{#if !native && !isStandalone && deferredPrompt && !dismissed}
   <aside class="pwa-install-banner" role="region" aria-label="App installieren">
     <p>
       <strong>Als App installieren</strong> — Mitfahrbank auf dem Startbildschirm mit

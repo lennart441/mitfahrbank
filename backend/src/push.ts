@@ -1,3 +1,5 @@
+import { cert, getApps, initializeApp, type App } from "firebase-admin/app";
+import { getMessaging } from "firebase-admin/messaging";
 import webpush from "web-push";
 import { config } from "./config.js";
 import { pool } from "./db.js";
@@ -10,6 +12,13 @@ export type PushSubscriptionRow = {
   endpoint: string;
   p256dh: string;
   auth: string;
+};
+
+export type FcmTokenRow = {
+  id: number;
+  user_id: string;
+  token: string;
+  platform: string;
 };
 
 export type DriverNotifyPrefs = {
@@ -25,6 +34,8 @@ export type DriverNotifyPrefs = {
   notify_days: number[] | null;
 };
 
+let firebaseApp: App | null = null;
+
 function configureVapid(): boolean {
   const { publicKey, privateKey, subject } = config.push;
   if (!publicKey || !privateKey) return false;
@@ -32,8 +43,41 @@ function configureVapid(): boolean {
   return true;
 }
 
+function getFirebaseApp(): App | null {
+  if (!config.fcm.enabled) return null;
+  if (firebaseApp) return firebaseApp;
+
+  try {
+    if (config.fcm.serviceAccountBase64) {
+      const json = JSON.parse(
+        Buffer.from(config.fcm.serviceAccountBase64, "base64").toString("utf8"),
+      );
+      firebaseApp =
+        getApps()[0] ??
+        initializeApp({
+          credential: cert(json),
+        });
+    } else if (config.fcm.serviceAccountJson) {
+      firebaseApp =
+        getApps()[0] ??
+        initializeApp({
+          credential: cert(config.fcm.serviceAccountJson),
+        });
+    }
+  } catch (err) {
+    console.warn("Firebase Admin SDK initialization failed:", err);
+    return null;
+  }
+
+  return firebaseApp;
+}
+
 export function pushEnabled(): boolean {
   return config.push.enabled && Boolean(config.push.publicKey && config.push.privateKey);
+}
+
+export function fcmEnabled(): boolean {
+  return config.fcm.enabled && getFirebaseApp() != null;
 }
 
 export async function upsertPushSubscription(
@@ -60,6 +104,34 @@ export async function deletePushSubscription(
     );
   } else {
     await pool.query(`DELETE FROM push_subscriptions WHERE user_id = $1`, [userId]);
+  }
+}
+
+export async function upsertFcmToken(
+  userId: string,
+  token: string,
+  platform: string,
+): Promise<void> {
+  await pool.query(
+    `INSERT INTO fcm_tokens (user_id, token, platform)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (user_id, token) DO UPDATE
+       SET platform = EXCLUDED.platform`,
+    [userId, token, platform],
+  );
+}
+
+export async function deleteFcmToken(
+  userId: string,
+  token?: string,
+): Promise<void> {
+  if (token) {
+    await pool.query(
+      `DELETE FROM fcm_tokens WHERE user_id = $1 AND token = $2`,
+      [userId, token],
+    );
+  } else {
+    await pool.query(`DELETE FROM fcm_tokens WHERE user_id = $1`, [userId]);
   }
 }
 
@@ -155,12 +227,12 @@ function matchesDestinationRegion(
   return false;
 }
 
-export async function getSubscriptionsForRide(
+async function getEligibleDrivers(
   destLat: number | null,
   destLon: number | null,
   destinationLabel: string,
   excludeUserId: string,
-): Promise<PushSubscriptionRow[]> {
+): Promise<DriverNotifyPrefs[]> {
   const { rows: drivers } = await pool.query<DriverNotifyPrefs>(
     `SELECT id, is_driver_notify, notify_all_destinations,
             notify_center_lat, notify_center_lon, notify_radius_km,
@@ -170,10 +242,24 @@ export async function getSubscriptionsForRide(
     [excludeUserId],
   );
 
-  const eligible = drivers.filter(
+  return drivers.filter(
     (d) =>
       withinNotifySchedule(d) &&
       matchesDestinationRegion(d, destLat, destLon, destinationLabel),
+  );
+}
+
+export async function getSubscriptionsForRide(
+  destLat: number | null,
+  destLon: number | null,
+  destinationLabel: string,
+  excludeUserId: string,
+): Promise<PushSubscriptionRow[]> {
+  const eligible = await getEligibleDrivers(
+    destLat,
+    destLon,
+    destinationLabel,
+    excludeUserId,
   );
   if (!eligible.length) return [];
 
@@ -186,24 +272,36 @@ export async function getSubscriptionsForRide(
   return rows;
 }
 
-export async function notifyDriversWebPush(
-  title: string,
-  body: string,
-  url: string,
+async function getFcmTokensForRide(
   destLat: number | null,
   destLon: number | null,
   destinationLabel: string,
   excludeUserId: string,
-): Promise<void> {
-  if (!pushEnabled() || !configureVapid()) return;
-
-  const subs = await getSubscriptionsForRide(
+): Promise<FcmTokenRow[]> {
+  const eligible = await getEligibleDrivers(
     destLat,
     destLon,
     destinationLabel,
     excludeUserId,
   );
-  if (!subs.length) return;
+  if (!eligible.length) return [];
+
+  const ids = eligible.map((d) => d.id);
+  const { rows } = await pool.query<FcmTokenRow>(
+    `SELECT id, user_id, token, platform
+     FROM fcm_tokens WHERE user_id = ANY($1::text[])`,
+    [ids],
+  );
+  return rows;
+}
+
+async function sendWebPushNotifications(
+  subs: PushSubscriptionRow[],
+  title: string,
+  body: string,
+  url: string,
+): Promise<void> {
+  if (!subs.length || !pushEnabled() || !configureVapid()) return;
 
   const payload = JSON.stringify({ title, body, url });
 
@@ -226,5 +324,82 @@ export async function notifyDriversWebPush(
         }
       }
     }),
+  );
+}
+
+async function sendFcmNotifications(
+  tokens: FcmTokenRow[],
+  title: string,
+  body: string,
+  url: string,
+): Promise<void> {
+  const app = getFirebaseApp();
+  if (!tokens.length || !app) return;
+
+  await Promise.allSettled(
+    tokens.map(async (row) => {
+      try {
+        await getMessaging(app).send({
+          token: row.token,
+          notification: { title, body },
+          data: { url },
+          android: {
+            priority: "high",
+            notification: { tag: "ride-request" },
+          },
+        });
+      } catch (err: unknown) {
+        const code = (err as { code?: string }).code;
+        if (
+          code === "messaging/registration-token-not-registered" ||
+          code === "messaging/invalid-registration-token"
+        ) {
+          await pool.query(`DELETE FROM fcm_tokens WHERE id = $1`, [row.id]);
+        } else {
+          console.warn(`FCM failed for user ${row.user_id}:`, err);
+        }
+      }
+    }),
+  );
+}
+
+export async function notifyDrivers(
+  title: string,
+  body: string,
+  url: string,
+  destLat: number | null,
+  destLon: number | null,
+  destinationLabel: string,
+  excludeUserId: string,
+): Promise<void> {
+  const [subs, fcmTokens] = await Promise.all([
+    getSubscriptionsForRide(destLat, destLon, destinationLabel, excludeUserId),
+    getFcmTokensForRide(destLat, destLon, destinationLabel, excludeUserId),
+  ]);
+
+  await Promise.all([
+    sendWebPushNotifications(subs, title, body, url),
+    sendFcmNotifications(fcmTokens, title, body, url),
+  ]);
+}
+
+/** @deprecated Use notifyDrivers */
+export async function notifyDriversWebPush(
+  title: string,
+  body: string,
+  url: string,
+  destLat: number | null,
+  destLon: number | null,
+  destinationLabel: string,
+  excludeUserId: string,
+): Promise<void> {
+  return notifyDrivers(
+    title,
+    body,
+    url,
+    destLat,
+    destLon,
+    destinationLabel,
+    excludeUserId,
   );
 }

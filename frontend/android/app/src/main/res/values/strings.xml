@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Mitfahrbank</string>
+    <string name="title_activity_main">Mitfahrbank</string>
+    <string name="package_name">de.stocksee.mitfahrbank</string>
+    <string name="custom_url_scheme">de.stocksee.mitfahrbank</string>
+</resources>

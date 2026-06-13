@@ -1,4 +1,10 @@
 import { api } from "./api";
+import { isNativeApp } from "./platform";
+import {
+  nativePushSupported,
+  subscribeNativePush,
+  unsubscribeNativePush,
+} from "./nativePush";
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
@@ -10,6 +16,8 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 export async function subscribeToPush(vapidPublicKey: string): Promise<boolean> {
+  if (isNativeApp()) return subscribeNativePush();
+
   if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
     return false;
   }
@@ -38,6 +46,10 @@ export async function subscribeToPush(vapidPublicKey: string): Promise<boolean> 
 }
 
 export async function unsubscribeFromPush(): Promise<void> {
+  if (isNativeApp()) {
+    await unsubscribeNativePush();
+    return;
+  }
   if (!("serviceWorker" in navigator)) return;
   const reg = await navigator.serviceWorker.ready;
   const sub = await reg.pushManager.getSubscription();
@@ -48,5 +60,6 @@ export async function unsubscribeFromPush(): Promise<void> {
 }
 
 export function pushSupported(): boolean {
+  if (isNativeApp()) return nativePushSupported();
   return "serviceWorker" in navigator && "PushManager" in window;
 }

@@ -32,6 +32,11 @@ export const config = {
       process.env.VAPID_SUBJECT ??
       "mailto:mitfahrbank@example.local",
   },
+  fcm: {
+    enabled: process.env.FCM_ENABLED !== "false",
+    serviceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON ?? "",
+    serviceAccountBase64: process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ?? "",
+  },
 };
 
 export function oidcConfigured(): boolean {

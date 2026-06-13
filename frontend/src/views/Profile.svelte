@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import { api, type DestinationPreset, type User } from "../lib/api";
   import { pushSupported, subscribeToPush, unsubscribeFromPush } from "../lib/push";
+  import { isNativeApp } from "../lib/platform";
 
   let {
     user,
@@ -29,6 +30,7 @@
   let notifyDays = $state<number[]>([1, 2, 3, 4, 5, 6, 0]);
   let presets = $state<DestinationPreset[]>([]);
   let pushEnabled = $state(false);
+  let fcmEnabled = $state(false);
   let vapidKey = $state<string | null>(null);
   let locationResults = $state<{ label: string; lat: number; lon: number }[]>([]);
   let searchingLocation = $state(false);
@@ -66,6 +68,7 @@
     const cfg = await api.config();
     presets = cfg.destinations;
     pushEnabled = cfg.push.enabled;
+    fcmEnabled = cfg.push.fcmEnabled;
     vapidKey = cfg.push.vapidPublicKey;
   });
 
@@ -110,8 +113,9 @@
     saving = true;
     message = "";
     try {
-      if (isDriverNotify && pushEnabled && vapidKey && pushSupported()) {
-        const ok = await subscribeToPush(vapidKey);
+      const canPush = isNativeApp() ? fcmEnabled : pushEnabled && vapidKey;
+      if (isDriverNotify && canPush && pushSupported()) {
+        const ok = await subscribeToPush(vapidKey ?? "");
         if (!ok) {
           message =
             "Push konnte nicht aktiviert werden — bitte Benachrichtigungen in den Geräteeinstellungen erlauben.";
@@ -170,21 +174,33 @@
 
   <section class="card">
     <h3 class="card-title">Push als Fahrer</h3>
-    {#if !pushEnabled}
+    {#if isNativeApp() ? !fcmEnabled : !pushEnabled}
       <p class="alert" style="margin:0 0 1rem;background:var(--surface-muted)">
-        Web-Push ist auf dem Server noch nicht konfiguriert (VAPID-Schlüssel).
+        Push-Benachrichtigungen sind auf dem Server noch nicht konfiguriert{isNativeApp()
+          ? " (Firebase/FCM)."
+          : " (VAPID-Schlüssel)."}
       </p>
     {:else if !pushSupported()}
       <p class="alert" style="margin:0 0 1rem;background:var(--surface-muted)">
-        Ihr Browser unterstützt keine Web-Push-Benachrichtigungen.
+        {isNativeApp()
+          ? "Push-Benachrichtigungen werden auf diesem Gerät nicht unterstützt."
+          : "Ihr Browser unterstützt keine Web-Push-Benachrichtigungen."}
       </p>
     {/if}
     <label class="field-check">
-      <input type="checkbox" bind:checked={isDriverNotify} disabled={!pushEnabled} />
+      <input
+        type="checkbox"
+        bind:checked={isDriverNotify}
+        disabled={isNativeApp() ? !fcmEnabled : !pushEnabled}
+      />
       <span>Bei neuen Fahrtwünschen Push erhalten</span>
     </label>
     <p style="font-size:0.875rem;color:var(--text-muted);margin:0 0 1rem">
-      Installieren Sie die App auf dem Startbildschirm und erlauben Sie Benachrichtigungen.
+      {#if isNativeApp()}
+        Erlauben Sie Benachrichtigungen, wenn die App danach fragt.
+      {:else}
+        Installieren Sie die App auf dem Startbildschirm und erlauben Sie Benachrichtigungen.
+      {/if}
     </p>
 
     {#if isDriverNotify}

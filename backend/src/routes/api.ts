@@ -4,9 +4,12 @@ import { pool, type RideRequest, type ShoppingRequest, type User } from "../db.j
 import { getUserById, requireAuth } from "../auth.js";
 import { reverseGeocode, searchPlaces } from "../geocode.js";
 import {
+  deleteFcmToken,
   deletePushSubscription,
-  notifyDriversWebPush,
+  fcmEnabled,
+  notifyDrivers,
   pushEnabled,
+  upsertFcmToken,
   upsertPushSubscription,
 } from "../push.js";
 import { canAccessRideChat } from "../rides.js";
@@ -37,6 +40,7 @@ export async function registerApiRoutes(app: FastifyInstance) {
     push: {
       enabled: pushEnabled(),
       vapidPublicKey: config.push.publicKey || null,
+      fcmEnabled: fcmEnabled(),
     },
   }));
 
@@ -151,6 +155,35 @@ export async function registerApiRoutes(app: FastifyInstance) {
     return { ok: true };
   });
 
+  app.post("/api/push/fcm-subscribe", async (request, reply) => {
+    const auth = requireAuth(request);
+    if (!auth) return reply.code(401).send({ error: "Unauthorized" });
+    if (!fcmEnabled()) {
+      return reply.code(503).send({ error: "FCM not configured" });
+    }
+
+    const body = request.body as { token?: string; platform?: string };
+    if (!body?.token?.trim()) {
+      return reply.code(400).send({ error: "Invalid token" });
+    }
+
+    await upsertFcmToken(
+      auth.userId,
+      body.token.trim(),
+      body.platform?.trim() || "android",
+    );
+    return { ok: true };
+  });
+
+  app.delete("/api/push/fcm-subscribe", async (request, reply) => {
+    const auth = requireAuth(request);
+    if (!auth) return reply.code(401).send({ error: "Unauthorized" });
+
+    const token = (request.body as { token?: string })?.token;
+    await deleteFcmToken(auth.userId, token);
+    return { ok: true };
+  });
+
   app.post("/api/ride-requests", async (request, reply) => {
     const auth = requireAuth(request);
     if (!auth) return reply.code(401).send({ error: "Unauthorized" });
@@ -177,7 +210,7 @@ export async function registerApiRoutes(app: FastifyInstance) {
     );
 
     const seeker = await getUserById(auth.userId);
-    void notifyDriversWebPush(
+    void notifyDrivers(
       "Neue Mitfahranfrage",
       `${seeker?.name ?? "Jemand"} möchte nach: ${destination.trim()}`,
       "/",

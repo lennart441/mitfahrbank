@@ -1,3 +1,5 @@
+import { ApiError } from "./errors";
+
 export type User = {
   id: string;
   name: string;
@@ -70,19 +72,38 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     headers.set("Content-Type", "application/json");
   }
 
-  const res = await fetch(path, {
-    ...init,
-    credentials: "include",
-    headers,
-  });
+  let res: Response;
+  try {
+    res = await fetch(path, {
+      ...init,
+      credentials: "include",
+      headers,
+    });
+  } catch {
+    throw new ApiError("Netzwerkfehler", "network");
+  }
+
   if (res.status === 401) {
-    throw new Error("unauthorized");
+    unauthorizedHandler?.();
+    throw new ApiError("unauthorized", "unauthorized");
   }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
-    throw new Error((err as { error?: string }).error ?? res.statusText);
+    throw new ApiError(
+      (err as { error?: string }).error ?? res.statusText,
+      "server",
+    );
   }
   return res.json() as Promise<T>;
+}
+
+let unauthorizedHandler: (() => void) | null = null;
+
+export function onUnauthorized(handler: () => void): () => void {
+  unauthorizedHandler = handler;
+  return () => {
+    if (unauthorizedHandler === handler) unauthorizedHandler = null;
+  };
 }
 
 export const api = {
@@ -93,7 +114,11 @@ export const api = {
     request<{
       destinations: DestinationPreset[];
       map: MapConfig;
-      push: { enabled: boolean; vapidPublicKey: string | null };
+      push: {
+        enabled: boolean;
+        vapidPublicKey: string | null;
+        fcmEnabled: boolean;
+      };
     }>("/api/config"),
   pushSubscribe: (subscription: {
     endpoint: string;
@@ -107,6 +132,16 @@ export const api = {
     request<{ ok: boolean }>("/api/push/subscribe", {
       method: "DELETE",
       body: JSON.stringify(endpoint ? { endpoint } : {}),
+    }),
+  fcmSubscribe: (body: { token: string; platform: string }) =>
+    request<{ ok: boolean }>("/api/push/fcm-subscribe", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  fcmUnsubscribe: (token?: string) =>
+    request<{ ok: boolean }>("/api/push/fcm-subscribe", {
+      method: "DELETE",
+      body: JSON.stringify(token ? { token } : {}),
     }),
   geocode: (q: string) =>
     request<{ label: string; lat: number; lon: number }[]>(
@@ -163,20 +198,12 @@ export const api = {
       body: JSON.stringify({ status: "done" }),
     }),
   logout: () => fetch("/auth/logout", { method: "POST", credentials: "include" }),
+  mobileExchange: (token: string) =>
+    request<{ ok: boolean }>("/auth/mobile-exchange", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    }),
 };
-
-export function connectWs(onMessage: (data: unknown) => void) {
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}/ws`);
-  ws.onmessage = (ev) => {
-    try {
-      onMessage(JSON.parse(ev.data));
-    } catch {
-      /* ignore */
-    }
-  };
-  return ws;
-}
 
 export function mapsLink(lat: number, lon: number) {
   return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`;
