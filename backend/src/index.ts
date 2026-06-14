@@ -11,6 +11,7 @@ import { registerAuthRoutes } from "./auth.js";
 import { config, oidcConfigured } from "./config.js";
 import { registerApiRoutes } from "./routes/api.js";
 import { runMigrations } from "./run-migrations.js";
+import { scheduleStaleDataCleanup } from "./cleanup.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const publicDir = join(__dirname, "..", "public");
@@ -81,6 +82,7 @@ if (existsSync(publicDir)) {
 
 async function start() {
   await runMigrations();
+  scheduleStaleDataCleanup();
   await app.listen({ port: config.port, host: "0.0.0.0" });
   console.log(`Mitfahrbank API on ${config.publicUrl}`);
 }

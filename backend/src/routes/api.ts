@@ -13,6 +13,7 @@ import {
   upsertPushSubscription,
 } from "../push.js";
 import { canAccessRideChat } from "../rides.js";
+import { runStaleDataCleanup } from "../cleanup.js";
 
 type RideWithNames = RideRequest & {
   seeker_name: string;
@@ -228,6 +229,8 @@ export async function registerApiRoutes(app: FastifyInstance) {
     const auth = requireAuth(request);
     if (!auth) return reply.code(401).send({ error: "Unauthorized" });
 
+    await runStaleDataCleanup();
+
     const query = request.query as {
       role?: string;
       mine?: string;
@@ -338,17 +341,31 @@ export async function registerApiRoutes(app: FastifyInstance) {
     const auth = requireAuth(request);
     if (!auth) return reply.code(401).send({ error: "Unauthorized" });
 
+    await runStaleDataCleanup();
+
     const { rows } = await pool.query<
-      ShoppingRequest & { creator_name: string; helper_name: string | null }
+      ShoppingRequest & {
+        creator_name: string;
+        helper_name: string | null;
+        creator_phone: string | null;
+        creator_phone_public: boolean;
+        helper_phone: string | null;
+        helper_phone_public: boolean;
+      }
     >(
-      `SELECT sh.*, c.name AS creator_name, h.name AS helper_name
+      `SELECT sh.*,
+        c.name AS creator_name,
+        c.phone_number AS creator_phone,
+        c.is_phone_public AS creator_phone_public,
+        h.name AS helper_name,
+        h.phone_number AS helper_phone,
+        h.is_phone_public AS helper_phone_public
        FROM shopping_requests sh
        JOIN users c ON c.id = sh.creator_id
        LEFT JOIN users h ON h.id = sh.helper_id
-       WHERE sh.status != 'done' OR sh.creator_id = $1 OR sh.helper_id = $1
+       WHERE sh.status != 'done'
        ORDER BY sh.created_at DESC
        LIMIT 50`,
-      [auth.userId],
     );
     return rows;
   });

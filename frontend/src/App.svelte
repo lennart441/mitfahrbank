@@ -219,7 +219,7 @@
             {:else if view === "driver"}
               <Driver {refreshKey} />
             {:else if view === "shopping"}
-              <Shopping {refreshKey} />
+              <Shopping {refreshKey} {user} />
             {:else if view === "profile"}
               <Profile {user} onSaved={(u) => (user = u)} onLogout={logout} />
             {/if}

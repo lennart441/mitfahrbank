@@ -122,7 +122,7 @@ a:hover {
 .topbar {
   position: sticky;
   top: 0;
-  z-index: 100;
+  z-index: 1100;
   height: var(--header-h);
   display: flex;
   align-items: center;
@@ -287,7 +287,7 @@ a:hover {
   bottom: 0;
   left: 0;
   right: 0;
-  z-index: 100;
+  z-index: 1100;
   padding: 0.5rem 0.65rem calc(0.5rem + env(safe-area-inset-bottom));
   gap: 0.35rem;
   background: rgba(255, 255, 255, 0.96);
@@ -719,6 +719,28 @@ a:hover {
   overflow: hidden;
   border: 1px solid var(--border);
   margin: 1rem 0;
+  isolation: isolate;
+  z-index: 0;
+}
+
+.detail-panel {
+  width: 100%;
+}
+
+.detail-back {
+  margin-bottom: 1rem;
+}
+
+.summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.summary-card .card-meta {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
 }
 
 .picker-map {

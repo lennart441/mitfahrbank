@@ -1,16 +1,28 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { api, type ShoppingRequest } from "../lib/api";
+  import ShoppingSummaryCard from "../lib/ShoppingSummaryCard.svelte";
+  import ShoppingDetailPanel from "../lib/ShoppingDetailPanel.svelte";
+  import { api, type ShoppingRequest, type User } from "../lib/api";
 
-  let { refreshKey = 0 }: { refreshKey?: number } = $props();
+  let {
+    refreshKey = 0,
+    user,
+  }: {
+    refreshKey?: number;
+    user: User;
+  } = $props();
 
   let list = $state<ShoppingRequest[]>([]);
   let items = $state("");
   let store = $state("");
   let showForm = $state(false);
+  let selectedEntryId = $state<number | null>(null);
 
   async function load() {
     list = await api.shopping();
+    if (selectedEntryId != null && !list.some((e) => e.id === selectedEntryId)) {
+      selectedEntryId = null;
+    }
   }
 
   onMount(load);
@@ -27,11 +39,20 @@
     await load();
   }
 
-  function statusBadge(s: string) {
-    if (s === "open") return "badge-waiting";
-    if (s === "claimed") return "badge-driving";
-    return "badge-done";
+  async function claim(id: number) {
+    await api.claimShopping(id);
+    await load();
   }
+
+  async function done(id: number) {
+    await api.doneShopping(id);
+    selectedEntryId = null;
+    await load();
+  }
+
+  const selectedEntry = $derived(
+    selectedEntryId != null ? list.find((e) => e.id === selectedEntryId) : null,
+  );
 </script>
 
 <header class="page-header">
@@ -39,11 +60,18 @@
   <p class="page-lead">Listen einstellen oder als Helfer reservieren — übersichtlich auf einen Blick.</p>
 </header>
 
-<button type="button" class="btn btn-primary" style="max-width:20rem;margin-bottom:1.25rem" onclick={() => (showForm = !showForm)}>
-  {showForm ? "Abbrechen" : "Neue Einkaufsliste"}
-</button>
+{#if selectedEntry == null}
+  <button
+    type="button"
+    class="btn btn-primary"
+    style="max-width:20rem;margin-bottom:1.25rem"
+    onclick={() => (showForm = !showForm)}
+  >
+    {showForm ? "Abbrechen" : "Neue Einkaufsliste"}
+  </button>
+{/if}
 
-{#if showForm}
+{#if showForm && selectedEntry == null}
   <section class="card" style="margin-bottom:1.5rem">
     <div class="field">
       <label for="store">Geschäft (optional)</label>
@@ -59,7 +87,16 @@
   </section>
 {/if}
 
-{#if list.length === 0}
+{#if selectedEntry}
+  <ShoppingDetailPanel
+    entry={selectedEntry}
+    {user}
+    {refreshKey}
+    onBack={() => (selectedEntryId = null)}
+    onClaim={claim}
+    onDone={done}
+  />
+{:else if list.length === 0}
   <div class="empty-state">
     <p><strong>Noch keine Listen</strong></p>
     <p>Erstellen Sie die erste Einkaufsliste für die Nachbarschaft.</p>
@@ -67,41 +104,10 @@
 {:else}
   <div class="card-grid card-grid--2">
     {#each list as entry}
-      <article class="card">
-        {#if entry.store_name}
-          <p class="card-title">{entry.store_name}</p>
-        {/if}
-        <p style="margin:0 0 0.75rem;line-height:1.5">{entry.items}</p>
-        <p style="font-size:0.9375rem;color:var(--text-secondary);margin:0 0 0.75rem">
-          Von {entry.creator_name}
-        </p>
-        <span class="badge {statusBadge(entry.status)}">{entry.status}</span>
-        {#if entry.status === "open"}
-          <button
-            type="button"
-            class="btn btn-primary"
-            style="margin-top:1rem"
-            onclick={async () => {
-              await api.claimShopping(entry.id);
-              await load();
-            }}
-          >
-            Liste reservieren (Helfer)
-          </button>
-        {:else if entry.status === "claimed"}
-          <button
-            type="button"
-            class="btn btn-secondary"
-            style="margin-top:1rem"
-            onclick={async () => {
-              await api.doneShopping(entry.id);
-              await load();
-            }}
-          >
-            Als erledigt markieren
-          </button>
-        {/if}
-      </article>
+      <ShoppingSummaryCard
+        {entry}
+        onShowDetails={(id) => (selectedEntryId = id)}
+      />
     {/each}
   </div>
 {/if}

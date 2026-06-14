@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { RideRequest } from "./api";
+  import { formatDateTime } from "./format";
 
   let {
     rides,
@@ -20,17 +21,6 @@
   function statusBadge(s: string) {
     return s === "completed" ? "badge-done" : "badge-waiting";
   }
-
-  function formatWhen(iso: string | null | undefined) {
-    if (!iso) return "";
-    return new Date(iso).toLocaleString("de-DE", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
 </script>
 
 {#if rides.length === 0}
@@ -49,7 +39,7 @@
           {:else if ride.driver_name}
             Fahrer: {ride.driver_name} ·
           {/if}
-          {formatWhen(ride.archived_at ?? ride.updated_at)}
+          {formatDateTime(ride.archived_at ?? ride.updated_at)}
         </p>
       </article>
     {/each}

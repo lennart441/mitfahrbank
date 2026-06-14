@@ -1,4 +1,5 @@
 import { ApiError } from "./errors";
+import { isAndroid, isIOS } from "./platform";
 
 export type User = {
   id: string;
@@ -45,6 +46,8 @@ export type RideRequest = {
   driver_name?: string | null;
   driver_phone?: string | null;
   driver_phone_public?: boolean;
+  created_at?: string;
+  updated_at?: string;
 };
 
 export type ChatMessage = {
@@ -64,6 +67,11 @@ export type ShoppingRequest = {
   status: string;
   creator_name?: string;
   helper_name?: string | null;
+  creator_phone?: string | null;
+  creator_phone_public?: boolean;
+  helper_phone?: string | null;
+  helper_phone_public?: boolean;
+  created_at?: string;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -205,6 +213,20 @@ export const api = {
     }),
 };
 
-export function mapsLink(lat: number, lon: number) {
+export function mapsLink(lat: number, lon: number, label?: string) {
+  if (isIOS()) return `maps://?daddr=${lat},${lon}`;
+  if (isAndroid()) {
+    const q = label ? `${lat},${lon}(${encodeURIComponent(label)})` : `${lat},${lon}`;
+    return `geo:${lat},${lon}?q=${q}`;
+  }
   return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`;
+}
+
+export function mapsLinkLabel() {
+  if (isIOS() || isAndroid()) return "In Karten-App öffnen";
+  return "In OpenStreetMap öffnen";
+}
+
+export function mapsLinkExternal() {
+  return isIOS() || isAndroid();
 }
