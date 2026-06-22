@@ -3,6 +3,7 @@
   import RideSummaryCard from "../lib/RideSummaryCard.svelte";
   import RideDetailPanel from "../lib/RideDetailPanel.svelte";
   import RideArchive from "../lib/RideArchive.svelte";
+  import DetailOverlay from "../lib/DetailOverlay.svelte";
   import { api, type RideRequest } from "../lib/api";
 
   let { refreshKey = 0 }: { refreshKey?: number } = $props();
@@ -53,9 +54,20 @@
   }
 
   async function complete(id: number) {
-    await api.updateRide(id, "completed");
+    error = "";
+    try {
+      await api.updateRide(id, "completed");
+      selectedRideId = null;
+      await load();
+    } catch (e) {
+      error =
+        e instanceof Error ? e.message : "Fahrt konnte nicht abgeschlossen werden.";
+    }
+  }
+
+  function closeDetail() {
     selectedRideId = null;
-    await load();
+    error = "";
   }
 
   const selectedRide = $derived(
@@ -68,21 +80,7 @@
   <p class="page-lead">Karte, Chat und Anruf — Push-Benachrichtigungen im Profil (App installieren).</p>
 </header>
 
-{#if error}
-  <div class="alert alert-error" role="alert">{error}</div>
-{/if}
-
-{#if selectedRide}
-  <RideDetailPanel
-    ride={selectedRide}
-    variant="driver"
-    {refreshKey}
-    {claimingId}
-    onBack={() => (selectedRideId = null)}
-    onClaim={claim}
-    onComplete={complete}
-  />
-{:else if loading}
+{#if loading}
   <p class="spinner-text">Fahrten werden geladen …</p>
 {:else if rides.length === 0}
   <div class="empty-state">
@@ -95,7 +93,10 @@
       <RideSummaryCard
         {ride}
         variant="driver"
-        onShowDetails={(id) => (selectedRideId = id)}
+        onShowDetails={(id) => {
+          error = "";
+          selectedRideId = id;
+        }}
       />
     {/each}
   </div>
@@ -108,4 +109,18 @@
     </summary>
     <RideArchive rides={archivedRides} variant="driver" />
   </details>
+{/if}
+
+{#if selectedRide}
+  <DetailOverlay title={selectedRide.destination} subtitle="Fahrer-Übersicht" onClose={closeDetail}>
+    <RideDetailPanel
+      ride={selectedRide}
+      variant="driver"
+      {refreshKey}
+      {claimingId}
+      actionError={error}
+      onClaim={claim}
+      onComplete={complete}
+    />
+  </DetailOverlay>
 {/if}

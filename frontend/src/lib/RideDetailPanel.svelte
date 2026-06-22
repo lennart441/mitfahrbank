@@ -1,6 +1,5 @@
 <script lang="ts">
   import OsmMap from "./OsmMap.svelte";
-  import DetailBackHeader from "./DetailBackHeader.svelte";
   import ContextChat from "./ContextChat.svelte";
   import { formatDateTime, rideStatusBadge, rideStatusLabel } from "./format";
   import { mapsLink, mapsLinkExternal, mapsLinkLabel, type RideRequest } from "./api";
@@ -10,7 +9,7 @@
     variant = "driver",
     refreshKey = 0,
     claimingId = null,
-    onBack,
+    actionError = "",
     onClaim,
     onComplete,
     onCancel,
@@ -19,7 +18,7 @@
     variant?: "driver" | "seeker";
     refreshKey?: number;
     claimingId?: number | null;
-    onBack: () => void;
+    actionError?: string;
     onClaim?: (id: number) => void;
     onComplete?: (id: number) => void;
     onCancel?: (id: number) => void;
@@ -31,9 +30,11 @@
 </script>
 
 <section class="detail-panel">
-  <DetailBackHeader title={ride.destination} {onBack} />
+  {#if actionError}
+    <div class="alert alert-error" role="alert">{actionError}</div>
+  {/if}
 
-  <article class="card">
+  <article class="card detail-panel__card">
     {#if variant === "driver" && ride.seeker_name}
       <p class="card-meta">Suchende/r: <strong>{ride.seeker_name}</strong></p>
     {:else if variant === "seeker" && ride.driver_name}

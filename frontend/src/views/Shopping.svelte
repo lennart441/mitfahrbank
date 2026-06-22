@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
   import ShoppingSummaryCard from "../lib/ShoppingSummaryCard.svelte";
   import ShoppingDetailPanel from "../lib/ShoppingDetailPanel.svelte";
+  import DetailOverlay from "../lib/DetailOverlay.svelte";
   import { api, type ShoppingRequest, type User } from "../lib/api";
 
   let {
@@ -17,6 +18,9 @@
   let store = $state("");
   let showForm = $state(false);
   let selectedEntryId = $state<number | null>(null);
+  let claiming = $state(false);
+  let completing = $state(false);
+  let actionError = $state("");
 
   async function load() {
     list = await api.shopping();
@@ -40,19 +44,46 @@
   }
 
   async function claim(id: number) {
-    await api.claimShopping(id);
-    await load();
+    actionError = "";
+    claiming = true;
+    try {
+      await api.claimShopping(id);
+      await load();
+    } catch (e) {
+      actionError =
+        e instanceof Error ? e.message : "Liste konnte nicht reserviert werden.";
+    } finally {
+      claiming = false;
+    }
   }
 
   async function done(id: number) {
-    await api.doneShopping(id);
+    actionError = "";
+    completing = true;
+    try {
+      await api.doneShopping(id);
+      selectedEntryId = null;
+      await load();
+    } catch (e) {
+      actionError =
+        e instanceof Error ? e.message : "Liste konnte nicht abgeschlossen werden.";
+    } finally {
+      completing = false;
+    }
+  }
+
+  function closeDetail() {
     selectedEntryId = null;
-    await load();
+    actionError = "";
   }
 
   const selectedEntry = $derived(
     selectedEntryId != null ? list.find((e) => e.id === selectedEntryId) : null,
   );
+
+  function overlayTitle(entry: ShoppingRequest) {
+    return entry.store_name || "Einkaufsliste";
+  }
 </script>
 
 <header class="page-header">
@@ -60,18 +91,16 @@
   <p class="page-lead">Listen einstellen oder als Helfer reservieren — übersichtlich auf einen Blick.</p>
 </header>
 
-{#if selectedEntry == null}
-  <button
-    type="button"
-    class="btn btn-primary"
-    style="max-width:20rem;margin-bottom:1.25rem"
-    onclick={() => (showForm = !showForm)}
-  >
-    {showForm ? "Abbrechen" : "Neue Einkaufsliste"}
-  </button>
-{/if}
+<button
+  type="button"
+  class="btn btn-primary"
+  style="max-width:20rem;margin-bottom:1.25rem"
+  onclick={() => (showForm = !showForm)}
+>
+  {showForm ? "Abbrechen" : "Neue Einkaufsliste"}
+</button>
 
-{#if showForm && selectedEntry == null}
+{#if showForm}
   <section class="card" style="margin-bottom:1.5rem">
     <div class="field">
       <label for="store">Geschäft (optional)</label>
@@ -87,16 +116,7 @@
   </section>
 {/if}
 
-{#if selectedEntry}
-  <ShoppingDetailPanel
-    entry={selectedEntry}
-    {user}
-    {refreshKey}
-    onBack={() => (selectedEntryId = null)}
-    onClaim={claim}
-    onDone={done}
-  />
-{:else if list.length === 0}
+{#if list.length === 0}
   <div class="empty-state">
     <p><strong>Noch keine Listen</strong></p>
     <p>Erstellen Sie die erste Einkaufsliste für die Nachbarschaft.</p>
@@ -106,8 +126,30 @@
     {#each list as entry}
       <ShoppingSummaryCard
         {entry}
-        onShowDetails={(id) => (selectedEntryId = id)}
+        onShowDetails={(id) => {
+          actionError = "";
+          selectedEntryId = id;
+        }}
       />
     {/each}
   </div>
+{/if}
+
+{#if selectedEntry}
+  <DetailOverlay
+    title={overlayTitle(selectedEntry)}
+    subtitle="Einkaufshilfe"
+    onClose={closeDetail}
+  >
+    <ShoppingDetailPanel
+      entry={selectedEntry}
+      {user}
+      {refreshKey}
+      {claiming}
+      {completing}
+      {actionError}
+      onClaim={claim}
+      onDone={done}
+    />
+  </DetailOverlay>
 {/if}

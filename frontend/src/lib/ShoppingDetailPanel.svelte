@@ -1,7 +1,6 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import { api, type ShoppingRequest, type User } from "../lib/api";
-  import DetailBackHeader from "../lib/DetailBackHeader.svelte";
   import ContextChat from "../lib/ContextChat.svelte";
   import { formatDateTime, shoppingStatusBadge, shoppingStatusLabel } from "../lib/format";
 
@@ -9,14 +8,18 @@
     entry,
     user,
     refreshKey = 0,
-    onBack,
+    claiming = false,
+    completing = false,
+    actionError = "",
     onClaim,
     onDone,
   }: {
     entry: ShoppingRequest;
     user: User;
     refreshKey?: number;
-    onBack: () => void;
+    claiming?: boolean;
+    completing?: boolean;
+    actionError?: string;
     onClaim: (id: number) => void;
     onDone: (id: number) => void;
   } = $props();
@@ -42,12 +45,11 @@
 </script>
 
 <section class="detail-panel">
-  <DetailBackHeader
-    title={entry.store_name || "Einkaufsliste"}
-    {onBack}
-  />
+  {#if actionError}
+    <div class="alert alert-error" role="alert">{actionError}</div>
+  {/if}
 
-  <article class="card">
+  <article class="card detail-panel__card">
     {#if entry.store_name}
       <p class="card-title">{entry.store_name}</p>
     {/if}
@@ -78,18 +80,20 @@
         type="button"
         class="btn btn-primary"
         style="margin-top:1rem"
+        disabled={claiming || completing}
         onclick={() => onClaim(entry.id)}
       >
-        Liste reservieren (Helfer)
+        {claiming ? "Wird reserviert …" : "Liste reservieren (Helfer)"}
       </button>
     {:else if entry.status === "claimed" && (user.id === entry.creator_id || user.id === entry.helper_id)}
       <button
         type="button"
         class="btn btn-secondary"
         style="margin-top:1rem"
+        disabled={claiming || completing}
         onclick={() => onDone(entry.id)}
       >
-        Als erledigt markieren
+        {completing ? "Wird abgeschlossen …" : "Als erledigt markieren"}
       </button>
     {/if}
 

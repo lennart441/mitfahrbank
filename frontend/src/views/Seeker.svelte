@@ -5,6 +5,7 @@
   import RideArchive from "../lib/RideArchive.svelte";
   import RideSummaryCard from "../lib/RideSummaryCard.svelte";
   import RideDetailPanel from "../lib/RideDetailPanel.svelte";
+  import DetailOverlay from "../lib/DetailOverlay.svelte";
   import {
     api,
     mapsLink,
@@ -40,6 +41,7 @@
   let showArchive = $state(false);
   let submitting = $state(false);
   let error = $state("");
+  let detailError = $state("");
   let selectedRideId = $state<number | null>(null);
 
   async function load() {
@@ -95,9 +97,20 @@
   }
 
   async function cancelRide(id: number) {
-    await api.updateRide(id, "cancelled");
+    detailError = "";
+    try {
+      await api.updateRide(id, "cancelled");
+      selectedRideId = null;
+      await load();
+    } catch (e) {
+      detailError =
+        e instanceof Error ? e.message : "Anfrage konnte nicht abgebrochen werden.";
+    }
+  }
+
+  function closeDetail() {
     selectedRideId = null;
-    await load();
+    detailError = "";
   }
 
   const selectedRide = $derived(
@@ -147,18 +160,7 @@
   </section>
 {/if}
 
-{#if selectedRide}
-  <header class="page-header" style="margin-top:2.5rem">
-    <h2>Aktuelle Fahrten</h2>
-  </header>
-  <RideDetailPanel
-    ride={selectedRide}
-    variant="seeker"
-    {refreshKey}
-    onBack={() => (selectedRideId = null)}
-    onCancel={cancelRide}
-  />
-{:else if myRides.length > 0}
+{#if myRides.length > 0}
   <header class="page-header" style="margin-top:2.5rem">
     <h2>Aktuelle Fahrten</h2>
   </header>
@@ -167,10 +169,25 @@
       <RideSummaryCard
         {ride}
         variant="seeker"
-        onShowDetails={(id) => (selectedRideId = id)}
+        onShowDetails={(id) => {
+          detailError = "";
+          selectedRideId = id;
+        }}
       />
     {/each}
   </div>
+{/if}
+
+{#if selectedRide}
+  <DetailOverlay title={selectedRide.destination} subtitle="Meine Fahrt" onClose={closeDetail}>
+    <RideDetailPanel
+      ride={selectedRide}
+      variant="seeker"
+      {refreshKey}
+      actionError={detailError}
+      onCancel={cancelRide}
+    />
+  </DetailOverlay>
 {/if}
 
 {#if archivedRides.length > 0 && selectedRideId == null}
