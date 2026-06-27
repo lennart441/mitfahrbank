@@ -1,7 +1,9 @@
 node_modules/
+.cursor/
 dist/
 build/
 .env
+firebase-service-account.json
 *.log
 .DS_Store
 frontend/dev-dist/
