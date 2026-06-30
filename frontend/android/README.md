@@ -16,9 +16,9 @@ Dann Android Studio schließen, ggf. `app/.idea/` löschen und das Projekt erneu
 
 ## JDK
 
-JDK **17** oder **21** verwenden (in Android Studio: *Settings → Build → Gradle → Gradle JDK*).
+JDK **17** oder **21** empfohlen (in Android Studio: *Settings → Build → Gradle → Gradle JDK*).
 
-JDK 25 wird derzeit von Android Gradle Plugin 8.7 nicht unterstützt.
+Mit **Gradle 8.14.5+** funktioniert auch JDK 25 als Gradle-Laufzeit. Ältere Gradle-Versionen (z. B. 8.11) schlagen mit `Unsupported class file major version 69` fehl.
 
 ## Build
 

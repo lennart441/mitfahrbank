@@ -248,8 +248,16 @@ export const api = {
     request<ShoppingRequest>(`/api/shopping-requests/${id}/claim`, {
       method: "POST",
     }),
-  doneShopping: (id: number) =>
+  updateShopping: (
+    id: number,
+    body: { items?: string; store_name?: string | null },
+  ) =>
     request<ShoppingRequest>(`/api/shopping-requests/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(body),
+    }),
+  doneShopping: (id: number) =>
+    request<{ ok: boolean }>(`/api/shopping-requests/${id}`, {
       method: "PATCH",
       body: JSON.stringify({ status: "done" }),
     }),

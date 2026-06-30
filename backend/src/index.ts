@@ -18,7 +18,7 @@ const publicDir = join(__dirname, "..", "public");
 
 const app = Fastify({ logger: true, trustProxy: true });
 
-// Native clients (CapacitorHttp) may send invalid Content-Type on bodyless requests.
+// Native clients (CapacitorHttp) may send Content-Type on bodyless requests.
 app.addHook("onRequest", (request, _reply, done) => {
   const rawType = request.headers["content-type"];
   if (!rawType) {
@@ -35,12 +35,31 @@ app.addHook("onRequest", (request, _reply, done) => {
     mediaType === "none" ||
     mediaType === "null" ||
     mediaType === "" ||
-    (bodyless && mediaType === "application/json")
+    bodyless
   ) {
     delete request.headers["content-type"];
   }
   done();
 });
+
+// Accept empty JSON bodies (e.g. bodyless POST/DELETE with Content-Type set by clients).
+app.removeContentTypeParser("application/json");
+app.addContentTypeParser(
+  "application/json",
+  { parseAs: "string" },
+  (_request, body, done) => {
+    const text = typeof body === "string" ? body : body.toString("utf8");
+    if (!text || text.trim() === "" || text.trim() === "{}") {
+      done(null, {});
+      return;
+    }
+    try {
+      done(null, JSON.parse(text) as unknown);
+    } catch (err) {
+      done(err as Error, undefined);
+    }
+  },
+);
 
 const wsClients = new Set<{ send: (data: string) => void }>();
 

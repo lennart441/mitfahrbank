@@ -438,27 +438,61 @@ export async function registerApiRoutes(app: FastifyInstance) {
     if (!auth) return reply.code(401).send({ error: "Unauthorized" });
 
     const id = Number((request.params as { id: string }).id);
-    const { status } = request.body as { status: string };
-    if (status !== "done") {
-      return reply.code(400).send({ error: "Invalid status" });
-    }
+    const body = request.body as {
+      status?: string;
+      items?: string;
+      store_name?: string | null;
+    };
 
-    const { rows } = await pool.query<ShoppingRequest>(
-      `UPDATE shopping_requests
-       SET status = $3
-       WHERE id = $1 AND (creator_id = $2 OR helper_id = $2)
-       RETURNING *`,
-      [id, auth.userId, status],
-    );
+    if (body.status === "done") {
+      const { rows } = await pool.query<ShoppingRequest>(
+        `DELETE FROM shopping_requests
+         WHERE id = $1 AND (creator_id = $2 OR helper_id = $2)
+         RETURNING *`,
+        [id, auth.userId],
+      );
 
-    if (!rows[0]) return reply.code(404).send({ error: "Not found" });
+      if (!rows[0]) return reply.code(404).send({ error: "Not found" });
 
-    if (status === "done") {
       await deleteChatForContext("shopping", id);
+      app.broadcast?.({ type: "shopping_requests_changed" });
+      return { ok: true };
     }
 
-    app.broadcast?.({ type: "shopping_requests_changed" });
-    return rows[0];
+    if (body.items !== undefined || body.store_name !== undefined) {
+      const items =
+        body.items !== undefined ? body.items.trim() : undefined;
+      if (items !== undefined && !items) {
+        return reply.code(400).send({ error: "items required" });
+      }
+
+      const storeName =
+        body.store_name !== undefined
+          ? body.store_name?.trim() || null
+          : undefined;
+
+      const { rows } = await pool.query<ShoppingRequest>(
+        `UPDATE shopping_requests
+         SET items = COALESCE($3, items),
+             store_name = CASE WHEN $4::boolean THEN $5 ELSE store_name END
+         WHERE id = $1 AND creator_id = $2 AND status = 'open'
+         RETURNING *`,
+        [
+          id,
+          auth.userId,
+          items ?? null,
+          storeName !== undefined,
+          storeName ?? null,
+        ],
+      );
+
+      if (!rows[0]) return reply.code(404).send({ error: "Not found" });
+
+      app.broadcast?.({ type: "shopping_requests_changed" });
+      return rows[0];
+    }
+
+    return reply.code(400).send({ error: "Invalid request" });
   });
 
   app.get("/api/chat/:contextType/:contextId", async (request, reply) => {

@@ -21,6 +21,7 @@
   let claiming = $state(false);
   let completing = $state(false);
   let deleting = $state(false);
+  let saving = $state(false);
   let actionError = $state("");
 
   async function load() {
@@ -85,6 +86,23 @@
         e instanceof Error ? e.message : "Liste konnte nicht gelöscht werden.";
     } finally {
       deleting = false;
+    }
+  }
+
+  async function save(
+    id: number,
+    body: { items: string; store_name: string | null },
+  ) {
+    actionError = "";
+    saving = true;
+    try {
+      await api.updateShopping(id, body);
+      await load();
+    } catch (e) {
+      actionError =
+        e instanceof Error ? e.message : "Liste konnte nicht gespeichert werden.";
+    } finally {
+      saving = false;
     }
   }
 
@@ -164,10 +182,12 @@
       {claiming}
       {completing}
       {deleting}
+      {saving}
       {actionError}
       onClaim={claim}
       onDone={done}
       onDelete={remove}
+      onSave={save}
     />
   </DetailOverlay>
 {/if}
