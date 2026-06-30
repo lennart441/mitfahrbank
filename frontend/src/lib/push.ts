@@ -3,6 +3,7 @@ import { isNativeApp } from "./platform";
 import {
   nativePushSupported,
   subscribeNativePush,
+  syncNativePushRegistration,
   unsubscribeNativePush,
 } from "./nativePush";
 
@@ -62,4 +63,12 @@ export async function unsubscribeFromPush(): Promise<void> {
 export function pushSupported(): boolean {
   if (isNativeApp()) return nativePushSupported();
   return "serviceWorker" in navigator && "PushManager" in window;
+}
+
+export async function syncDriverPushIfNeeded(
+  isDriverNotify: boolean,
+  fcmEnabled: boolean,
+): Promise<void> {
+  if (!isNativeApp() || !fcmEnabled || !isDriverNotify) return;
+  await syncNativePushRegistration();
 }

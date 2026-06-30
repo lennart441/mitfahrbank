@@ -26,6 +26,10 @@ export async function initNativePushListeners(): Promise<void> {
     return;
   }
 
+  await PushNotifications.addListener("pushNotificationReceived", (notification) => {
+    console.info("FCM push received:", notification.title, notification.body);
+  });
+
   await PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
     openNotificationUrl(action.notification.data as { url?: string } | undefined);
   });
@@ -48,17 +52,23 @@ async function subscribeIosPush(): Promise<boolean> {
 }
 
 async function subscribeAndroidPush(): Promise<boolean> {
-  const perm = await PushNotifications.requestPermissions();
+  const current = await PushNotifications.checkPermissions();
+  const perm =
+    current.receive === "prompt"
+      ? await PushNotifications.requestPermissions()
+      : current;
   if (perm.receive !== "granted") return false;
 
   return new Promise((resolve) => {
     let settled = false;
     let regHandle: PluginListenerHandle | null = null;
     let errHandle: PluginListenerHandle | null = null;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const finish = async (ok: boolean) => {
       if (settled) return;
       settled = true;
+      if (timeoutId != null) clearTimeout(timeoutId);
       await regHandle?.remove();
       await errHandle?.remove();
       resolve(ok);
@@ -72,14 +82,21 @@ async function subscribeAndroidPush(): Promise<boolean> {
             platform: Capacitor.getPlatform(),
           });
           await finish(true);
-        } catch {
+        } catch (err) {
+          console.warn("FCM token upload failed:", err);
           await finish(false);
         }
       });
 
-      errHandle = await PushNotifications.addListener("registrationError", () => {
+      errHandle = await PushNotifications.addListener("registrationError", (err) => {
+        console.warn("FCM registration error:", err);
         void finish(false);
       });
+
+      timeoutId = setTimeout(() => {
+        console.warn("FCM registration timed out");
+        void finish(false);
+      }, 15000);
 
       await PushNotifications.register();
     })();
@@ -90,6 +107,16 @@ export async function subscribeNativePush(): Promise<boolean> {
   if (!nativePushSupported()) return false;
   if (isIOS()) return subscribeIosPush();
   return subscribeAndroidPush();
+}
+
+/** Re-register FCM token after login or when driver push was enabled earlier. */
+export async function syncNativePushRegistration(): Promise<void> {
+  if (!nativePushSupported()) return;
+  if (isAndroid()) {
+    const perm = await PushNotifications.checkPermissions();
+    if (perm.receive !== "granted") return;
+  }
+  await subscribeNativePush();
 }
 
 export async function unsubscribeNativePush(): Promise<void> {

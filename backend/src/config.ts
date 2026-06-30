@@ -35,7 +35,10 @@ export const config = {
   fcm: {
     enabled: process.env.FCM_ENABLED !== "false",
     serviceAccountJson: process.env.FIREBASE_SERVICE_ACCOUNT_JSON ?? "",
-    serviceAccountBase64: process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ?? "",
+    serviceAccountBase64: (process.env.FIREBASE_SERVICE_ACCOUNT_BASE64 ?? "").replace(
+      /\s/g,
+      "",
+    ),
   },
 };
 

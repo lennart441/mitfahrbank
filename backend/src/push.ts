@@ -57,12 +57,14 @@ function getFirebaseApp(): App | null {
         initializeApp({
           credential: cert(json),
         });
+      console.info(`FCM initialized for project ${json.project_id}`);
     } else if (config.fcm.serviceAccountJson) {
       firebaseApp =
         getApps()[0] ??
         initializeApp({
           credential: cert(config.fcm.serviceAccountJson),
         });
+      console.info("FCM initialized from service account file");
     }
   } catch (err) {
     console.warn("Firebase Admin SDK initialization failed:", err);
@@ -376,6 +378,17 @@ export async function notifyDrivers(
     getSubscriptionsForRide(destLat, destLon, destinationLabel, excludeUserId),
     getFcmTokensForRide(destLat, destLon, destinationLabel, excludeUserId),
   ]);
+
+  if (!subs.length && !fcmTokens.length) {
+    console.info(
+      `Push: no eligible drivers/tokens for "${destinationLabel}" (excluded seeker ${excludeUserId})`,
+    );
+    return;
+  }
+
+  console.info(
+    `Push: notifying ${fcmTokens.length} FCM token(s), ${subs.length} web sub(s) for "${destinationLabel}"`,
+  );
 
   await Promise.all([
     sendWebPushNotifications(subs, title, body, url),

@@ -15,6 +15,7 @@
   import { connectWsReconnect } from "./lib/ws";
   import { startLogin, onNativeAuthComplete, clearNativeAuthStorage, isOAuthPending } from "./lib/auth";
   import { isNativeApp } from "./lib/platform";
+  import { syncDriverPushIfNeeded } from "./lib/push";
   import { bootstrapSession, refreshSession, registerSessionExpiryHandler } from "./lib/session";
   import { wait } from "./lib/network";
 
@@ -38,6 +39,9 @@
     if (result.ok) {
       user = result.user;
       phase = "app";
+      void api.config().then((cfg) =>
+        syncDriverPushIfNeeded(result.user.is_driver_notify, cfg.push.fcmEnabled),
+      );
       return;
     }
 
@@ -74,6 +78,9 @@
       user = refreshed;
       phase = "app";
       refreshKey += 1;
+      void api.config().then((cfg) =>
+        syncDriverPushIfNeeded(refreshed.is_driver_notify, cfg.push.fcmEnabled),
+      );
       return;
     }
     if (prevPhase === "app") {
@@ -232,7 +239,16 @@
             {:else if view === "shopping"}
               <Shopping {refreshKey} {user} />
             {:else if view === "profile"}
-              <Profile {user} onSaved={(u) => (user = u)} onLogout={logout} />
+              <Profile
+                {user}
+                onSaved={(u) => {
+                  user = u;
+                  void api.config().then((cfg) =>
+                    syncDriverPushIfNeeded(u.is_driver_notify, cfg.push.fcmEnabled),
+                  );
+                }}
+                onLogout={logout}
+              />
             {/if}
           </div>
         </div>
