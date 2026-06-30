@@ -78,12 +78,16 @@ export type ShoppingRequest = {
 
 async function nativeRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const method = (init?.method ?? "GET").toUpperCase();
+  const body =
+    init?.body != null && init.body !== "" ? String(init.body) : undefined;
   const headers: Record<string, string> = {};
   const src = new Headers(init?.headers);
   src.forEach((value, key) => {
-    headers[key] = value;
+    if (body != null || key.toLowerCase() !== "content-type") {
+      headers[key] = value;
+    }
   });
-  if (init?.body != null && !headers["Content-Type"] && !headers["content-type"]) {
+  if (body != null && !headers["Content-Type"] && !headers["content-type"]) {
     headers["Content-Type"] = "application/json";
   }
 
@@ -93,7 +97,7 @@ async function nativeRequest<T>(path: string, init?: RequestInit): Promise<T> {
       url: `${SERVER_ORIGIN}${path}`,
       method,
       headers,
-      data: init?.body ?? undefined,
+      ...(body != null ? { data: body } : {}),
       responseType: "json",
     });
   } catch {
@@ -255,11 +259,7 @@ export const api = {
     }),
   logout: () =>
     isNativeApp()
-      ? CapacitorHttp.request({
-          url: `${SERVER_ORIGIN}/auth/logout`,
-          method: "POST",
-          responseType: "json",
-        })
+      ? request<{ ok: boolean }>("/auth/logout", { method: "POST" })
       : fetch("/auth/logout", { method: "POST", credentials: "include" }),
   mobileExchange: (token: string) =>
     request<{ ok: boolean }>("/auth/mobile-exchange", {

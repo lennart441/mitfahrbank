@@ -18,6 +18,30 @@ const publicDir = join(__dirname, "..", "public");
 
 const app = Fastify({ logger: true, trustProxy: true });
 
+// Native clients (CapacitorHttp) may send invalid Content-Type on bodyless requests.
+app.addHook("onRequest", (request, _reply, done) => {
+  const rawType = request.headers["content-type"];
+  if (!rawType) {
+    done();
+    return;
+  }
+
+  const mediaType = String(rawType).toLowerCase().split(";")[0]?.trim();
+  const length = request.headers["content-length"];
+  const bodyless =
+    length === undefined || length === "" || length === "0";
+
+  if (
+    mediaType === "none" ||
+    mediaType === "null" ||
+    mediaType === "" ||
+    (bodyless && mediaType === "application/json")
+  ) {
+    delete request.headers["content-type"];
+  }
+  done();
+});
+
 const wsClients = new Set<{ send: (data: string) => void }>();
 
 app.decorate("broadcast", (payload: object) => {
