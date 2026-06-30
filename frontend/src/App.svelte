@@ -13,7 +13,7 @@
   import PwaInstall from "./lib/PwaInstall.svelte";
   import LoadingScreen from "./lib/LoadingScreen.svelte";
   import { connectWsReconnect } from "./lib/ws";
-  import { startLogin } from "./lib/auth";
+  import { startLogin, onNativeAuthComplete, clearNativeAuthStorage, isOAuthPending } from "./lib/auth";
   import { isNativeApp } from "./lib/platform";
   import { bootstrapSession, refreshSession, registerSessionExpiryHandler } from "./lib/session";
   import { wait } from "./lib/network";
@@ -52,7 +52,7 @@
   }
 
   async function handleSessionExpired() {
-    if (sessionRenewing || phase === "loading") return;
+    if (sessionRenewing || phase === "loading" || isOAuthPending()) return;
     sessionRenewing = true;
     user = null;
     phase = "loading";
@@ -63,6 +63,7 @@
 
   async function resumeSession() {
     if (phase !== "app" && phase !== "login") return;
+    if (isOAuthPending()) return;
     const prevPhase = phase;
     phase = "loading";
     statusMessage = "Sitzung wird geprüft …";
@@ -88,13 +89,22 @@
       if (phase === "app") void handleSessionExpired();
     });
 
+    const stopNativeAuth = isNativeApp()
+      ? onNativeAuthComplete(() => {
+          sessionRenewing = false;
+          phase = "loading";
+          statusMessage = "Anmeldung wird abgeschlossen …";
+          void applyBootstrap();
+        })
+      : () => {};
+
     void applyBootstrap();
 
     const ws = connectWsReconnect(() => {
       refreshKey += 1;
     });
 
-    const cleanups: (() => void)[] = [stopUnauthorized, () => ws()];
+    const cleanups: (() => void)[] = [stopUnauthorized, stopNativeAuth, () => ws()];
 
     if (isNativeApp()) {
       void CapApp.addListener("appStateChange", ({ isActive }) => {
@@ -126,6 +136,7 @@
   async function logout() {
     phase = "loading";
     statusMessage = "Abmelden …";
+    clearNativeAuthStorage();
     await api.logout();
     user = null;
     view = "home";

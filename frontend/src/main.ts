@@ -6,13 +6,17 @@ import { initNativeAuthListener, normalizeNativeEntryUrl } from "./lib/auth";
 import { initNativePushListeners } from "./lib/nativePush";
 import { isNativeApp } from "./lib/platform";
 
-if (!isNativeApp()) {
-  registerSW({ immediate: true });
-} else {
-  void initNativeAuthListener();
-  void initNativePushListeners();
+async function startApp(): Promise<void> {
+  if (!isNativeApp()) {
+    registerSW({ immediate: true });
+  } else {
+    await initNativeAuthListener();
+    void initNativePushListeners();
+  }
+
+  if (!normalizeNativeEntryUrl()) {
+    mount(App, { target: document.getElementById("app")! });
+  }
 }
 
-if (!normalizeNativeEntryUrl()) {
-  mount(App, { target: document.getElementById("app")! });
-}
+void startApp();

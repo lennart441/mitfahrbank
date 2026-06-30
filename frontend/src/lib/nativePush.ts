@@ -1,5 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import type { PluginListenerHandle } from "@capacitor/core";
+import { FirebaseMessaging } from "@capacitor-firebase/messaging";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { api } from "./api";
 import { isAndroid, isIOS, isNativeApp } from "./platform";
@@ -8,21 +9,45 @@ export function nativePushSupported(): boolean {
   return isNativeApp() && (isAndroid() || isIOS());
 }
 
+function openNotificationUrl(data: { url?: string } | undefined): void {
+  const url = data?.url ?? "/";
+  if (url.startsWith("/")) {
+    window.location.href = url;
+  }
+}
+
 export async function initNativePushListeners(): Promise<void> {
   if (!nativePushSupported()) return;
 
+  if (isIOS()) {
+    await FirebaseMessaging.addListener("notificationActionPerformed", (event) => {
+      openNotificationUrl(event.notification.data as { url?: string } | undefined);
+    });
+    return;
+  }
+
   await PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
-    const data = action.notification.data as { url?: string } | undefined;
-    const url = data?.url ?? "/";
-    if (url.startsWith("/")) {
-      window.location.href = url;
-    }
+    openNotificationUrl(action.notification.data as { url?: string } | undefined);
   });
 }
 
-export async function subscribeNativePush(): Promise<boolean> {
-  if (!nativePushSupported()) return false;
+async function subscribeIosPush(): Promise<boolean> {
+  const perm = await FirebaseMessaging.requestPermissions();
+  if (perm.receive !== "granted") return false;
 
+  try {
+    const { token } = await FirebaseMessaging.getToken();
+    await api.fcmSubscribe({
+      token,
+      platform: Capacitor.getPlatform(),
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function subscribeAndroidPush(): Promise<boolean> {
   const perm = await PushNotifications.requestPermissions();
   if (perm.receive !== "granted") return false;
 
@@ -61,7 +86,16 @@ export async function subscribeNativePush(): Promise<boolean> {
   });
 }
 
+export async function subscribeNativePush(): Promise<boolean> {
+  if (!nativePushSupported()) return false;
+  if (isIOS()) return subscribeIosPush();
+  return subscribeAndroidPush();
+}
+
 export async function unsubscribeNativePush(): Promise<void> {
   if (!nativePushSupported()) return;
+  if (isIOS()) {
+    await FirebaseMessaging.deleteToken();
+  }
   await api.fcmUnsubscribe();
 }

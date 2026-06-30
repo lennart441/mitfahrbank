@@ -1,5 +1,7 @@
+import { CapacitorHttp } from "@capacitor/core";
 import { ApiError } from "./errors";
-import { isAndroid, isIOS } from "./platform";
+import { SERVER_ORIGIN } from "./auth";
+import { isAndroid, isIOS, isNativeApp } from "./platform";
 
 export type User = {
   id: string;
@@ -74,7 +76,49 @@ export type ShoppingRequest = {
   created_at?: string;
 };
 
+async function nativeRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const headers: Record<string, string> = {};
+  const src = new Headers(init?.headers);
+  src.forEach((value, key) => {
+    headers[key] = value;
+  });
+  if (init?.body != null && !headers["Content-Type"] && !headers["content-type"]) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  let res;
+  try {
+    res = await CapacitorHttp.request({
+      url: `${SERVER_ORIGIN}${path}`,
+      method,
+      headers,
+      data: init?.body ?? undefined,
+      responseType: "json",
+    });
+  } catch {
+    throw new ApiError("Netzwerkfehler", "network");
+  }
+
+  if (res.status === 401) {
+    unauthorizedHandler?.();
+    throw new ApiError("unauthorized", "unauthorized");
+  }
+  if (res.status < 200 || res.status >= 300) {
+    const err =
+      typeof res.data === "object" && res.data != null
+        ? (res.data as { error?: string })
+        : {};
+    throw new ApiError(err.error ?? `HTTP ${res.status}`, "server");
+  }
+  return res.data as T;
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (isNativeApp()) {
+    return nativeRequest<T>(path, init);
+  }
+
   const headers = new Headers(init?.headers);
   if (init?.body != null && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -205,7 +249,14 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status: "done" }),
     }),
-  logout: () => fetch("/auth/logout", { method: "POST", credentials: "include" }),
+  logout: () =>
+    isNativeApp()
+      ? CapacitorHttp.request({
+          url: `${SERVER_ORIGIN}/auth/logout`,
+          method: "POST",
+          responseType: "json",
+        })
+      : fetch("/auth/logout", { method: "POST", credentials: "include" }),
   mobileExchange: (token: string) =>
     request<{ ok: boolean }>("/auth/mobile-exchange", {
       method: "POST",

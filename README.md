@@ -116,14 +116,31 @@ npx @capacitor/assets generate --iconBackgroundColor '#1f5c2e' --splashBackgroun
 
 Quelle: `public/pwa-512x512.png`
 
-## iOS (geplant)
+## iOS (Capacitor)
 
-Die Capacitor-Struktur ist vorbereitet (`nativePush.ts` unterstützt iOS). Für eine iOS-Version:
+Native iOS-App neben PWA und Android — Frontend-only gegen **https://mitfahren.stocksee.de** (kein lokales Backend).
 
-1. Apple Developer Account
-2. `npx cap add ios` im `frontend/`-Verzeichnis
-3. Firebase-Projekt um iOS-App erweitern (APNs)
-4. Push-Berechtigungen in Xcode konfigurieren
+### Entwicklung
+
+```bash
+cd frontend
+npm install
+npm run build:ios    # Vite-Build + cap sync
+npm run ios:open     # Xcode öffnen
+```
+
+**Xcode:** `frontend/ios/App/App.xcworkspace` öffnen — siehe [`frontend/ios/README.md`](frontend/ios/README.md).
+
+Voraussetzungen: Apple Developer Account, `GoogleService-Info.plist` (Vorlage: `frontend/ios/App/App/GoogleService-Info.plist.example`), APNs-Key in Firebase.
+
+Push auf iOS nutzt **Firebase Cloud Messaging** (`@capacitor-firebase/messaging`) — FCM-Token an Prod-Backend. Nur auf echtem iPhone testbar.
+
+### App Store / TestFlight
+
+- Signing in Xcode mit Developer-Team
+- Datenschutzerklärung: https://www.stocksee.de/datenschutz/
+- `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in Xcode bei Updates erhöhen
+- TestFlight-Upload: siehe [`frontend/ios/README.md`](frontend/ios/README.md#testflight-preflight--beta)
 
 ## Karte & Telefon & Chat
 
@@ -152,7 +169,7 @@ OAuth2/OIDC — siehe `.env.example` (`OIDC_ISSUER`, `OIDC_CLIENT_ID`, …).
 | Kurzwahl + freie Zieleingabe (OSM-Suche) | ✓ |
 | Web Push für registrierte Fahrer (Region & Zeit) | ✓ |
 | Native Android-App (Capacitor + FCM) | ✓ |
+| Native iOS-App (Capacitor + FCM) | ✓ |
 | Chat (Fahrten) + Telefon | ✓ |
 | Einkaufshilfe | ✓ |
 | Installierbare PWA | ✓ |
-| iOS-App | geplant |

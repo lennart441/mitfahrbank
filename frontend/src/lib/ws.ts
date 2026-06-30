@@ -1,8 +1,13 @@
 import { App } from "@capacitor/app";
 import { Network } from "@capacitor/network";
+import { SERVER_ORIGIN } from "./auth";
 import { isNativeApp } from "./platform";
 
 function wsUrl(): string {
+  if (isNativeApp()) {
+    const wsOrigin = SERVER_ORIGIN.replace(/^http/, "ws");
+    return `${wsOrigin}/ws`;
+  }
   const proto = location.protocol === "https:" ? "wss" : "ws";
   return `${proto}://${location.host}/ws`;
 }
