@@ -1,9 +1,9 @@
 import { api } from "./api";
 import { isNativeApp } from "./platform";
 import {
+  ensureNativePushRegistration,
   nativePushSupported,
   subscribeNativePush,
-  syncNativePushRegistration,
   unsubscribeNativePush,
 } from "./nativePush";
 
@@ -65,10 +65,22 @@ export function pushSupported(): boolean {
   return "serviceWorker" in navigator && "PushManager" in window;
 }
 
-export async function syncDriverPushIfNeeded(
-  isDriverNotify: boolean,
+const NATIVE_PUSH_PROMPT_KEY = "native_push_permission_attempted";
+
+export async function ensurePushRegistrationOnLogin(
   fcmEnabled: boolean,
+  isDriverNotify: boolean,
 ): Promise<void> {
-  if (!isNativeApp() || !fcmEnabled || !isDriverNotify) return;
-  await syncNativePushRegistration();
+  if (!isNativeApp() || !fcmEnabled) return;
+
+  const prompted = localStorage.getItem(NATIVE_PUSH_PROMPT_KEY) === "1";
+  if (!prompted) {
+    localStorage.setItem(NATIVE_PUSH_PROMPT_KEY, "1");
+    await ensureNativePushRegistration();
+    return;
+  }
+
+  if (isDriverNotify) {
+    await ensureNativePushRegistration();
+  }
 }

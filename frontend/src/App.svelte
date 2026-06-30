@@ -15,7 +15,7 @@
   import { connectWsReconnect } from "./lib/ws";
   import { startLogin, onNativeAuthComplete, clearNativeAuthStorage, isOAuthPending } from "./lib/auth";
   import { isNativeApp } from "./lib/platform";
-  import { syncDriverPushIfNeeded } from "./lib/push";
+  import { ensurePushRegistrationOnLogin } from "./lib/push";
   import { bootstrapSession, refreshSession, registerSessionExpiryHandler } from "./lib/session";
   import { wait } from "./lib/network";
 
@@ -40,7 +40,7 @@
       user = result.user;
       phase = "app";
       void api.config().then((cfg) =>
-        syncDriverPushIfNeeded(result.user.is_driver_notify, cfg.push.fcmEnabled),
+        ensurePushRegistrationOnLogin(cfg.push.fcmEnabled, result.user.is_driver_notify),
       );
       return;
     }
@@ -79,7 +79,7 @@
       phase = "app";
       refreshKey += 1;
       void api.config().then((cfg) =>
-        syncDriverPushIfNeeded(refreshed.is_driver_notify, cfg.push.fcmEnabled),
+        ensurePushRegistrationOnLogin(cfg.push.fcmEnabled, refreshed.is_driver_notify),
       );
       return;
     }
@@ -244,7 +244,7 @@
                 onSaved={(u) => {
                   user = u;
                   void api.config().then((cfg) =>
-                    syncDriverPushIfNeeded(u.is_driver_notify, cfg.push.fcmEnabled),
+                    ensurePushRegistrationOnLogin(cfg.push.fcmEnabled, u.is_driver_notify),
                   );
                 }}
                 onLogout={logout}

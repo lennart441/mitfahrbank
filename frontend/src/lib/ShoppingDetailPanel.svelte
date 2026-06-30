@@ -10,18 +10,22 @@
     refreshKey = 0,
     claiming = false,
     completing = false,
+    deleting = false,
     actionError = "",
     onClaim,
     onDone,
+    onDelete,
   }: {
     entry: ShoppingRequest;
     user: User;
     refreshKey?: number;
     claiming?: boolean;
     completing?: boolean;
+    deleting?: boolean;
     actionError?: string;
     onClaim: (id: number) => void;
     onDone: (id: number) => void;
+    onDelete: (id: number) => void;
   } = $props();
 
   function callTarget() {
@@ -42,6 +46,13 @@
   }
 
   const call = $derived(callTarget());
+  const isCreator = $derived(user.id === entry.creator_id);
+  const isHelper = $derived(user.id === entry.helper_id);
+  const canComplete = $derived(
+    entry.status === "open"
+      ? isCreator
+      : entry.status === "claimed" && (isCreator || isHelper),
+  );
 </script>
 
 <section class="detail-panel">
@@ -80,20 +91,34 @@
         type="button"
         class="btn btn-primary"
         style="margin-top:1rem"
-        disabled={claiming || completing}
+        disabled={claiming || completing || deleting}
         onclick={() => onClaim(entry.id)}
       >
         {claiming ? "Wird reserviert …" : "Liste reservieren (Helfer)"}
       </button>
-    {:else if entry.status === "claimed" && (user.id === entry.creator_id || user.id === entry.helper_id)}
+    {/if}
+
+    {#if canComplete}
       <button
         type="button"
         class="btn btn-secondary"
         style="margin-top:1rem"
-        disabled={claiming || completing}
+        disabled={claiming || completing || deleting}
         onclick={() => onDone(entry.id)}
       >
         {completing ? "Wird abgeschlossen …" : "Als erledigt markieren"}
+      </button>
+    {/if}
+
+    {#if isCreator && entry.status !== "done"}
+      <button
+        type="button"
+        class="btn btn-secondary"
+        style="margin-top:0.75rem"
+        disabled={claiming || completing || deleting}
+        onclick={() => onDelete(entry.id)}
+      >
+        {deleting ? "Wird gelöscht …" : "Liste löschen"}
       </button>
     {/if}
 

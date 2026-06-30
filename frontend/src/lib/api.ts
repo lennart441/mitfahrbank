@@ -249,6 +249,10 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ status: "done" }),
     }),
+  deleteShopping: (id: number) =>
+    request<{ ok: boolean }>(`/api/shopping-requests/${id}`, {
+      method: "DELETE",
+    }),
   logout: () =>
     isNativeApp()
       ? CapacitorHttp.request({

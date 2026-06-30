@@ -20,6 +20,7 @@
   let selectedEntryId = $state<number | null>(null);
   let claiming = $state(false);
   let completing = $state(false);
+  let deleting = $state(false);
   let actionError = $state("");
 
   async function load() {
@@ -69,6 +70,21 @@
         e instanceof Error ? e.message : "Liste konnte nicht abgeschlossen werden.";
     } finally {
       completing = false;
+    }
+  }
+
+  async function remove(id: number) {
+    actionError = "";
+    deleting = true;
+    try {
+      await api.deleteShopping(id);
+      selectedEntryId = null;
+      await load();
+    } catch (e) {
+      actionError =
+        e instanceof Error ? e.message : "Liste konnte nicht gelöscht werden.";
+    } finally {
+      deleting = false;
     }
   }
 
@@ -147,9 +163,11 @@
       {refreshKey}
       {claiming}
       {completing}
+      {deleting}
       {actionError}
       onClaim={claim}
       onDone={done}
+      onDelete={remove}
     />
   </DetailOverlay>
 {/if}

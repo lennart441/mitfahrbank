@@ -414,12 +414,34 @@ export async function registerApiRoutes(app: FastifyInstance) {
     return rows[0];
   });
 
+  app.delete("/api/shopping-requests/:id", async (request, reply) => {
+    const auth = requireAuth(request);
+    if (!auth) return reply.code(401).send({ error: "Unauthorized" });
+
+    const id = Number((request.params as { id: string }).id);
+    const { rows } = await pool.query<ShoppingRequest>(
+      `DELETE FROM shopping_requests
+       WHERE id = $1 AND creator_id = $2
+       RETURNING *`,
+      [id, auth.userId],
+    );
+
+    if (!rows[0]) return reply.code(404).send({ error: "Not found" });
+
+    await deleteChatForContext("shopping", id);
+    app.broadcast?.({ type: "shopping_requests_changed" });
+    return { ok: true };
+  });
+
   app.patch("/api/shopping-requests/:id", async (request, reply) => {
     const auth = requireAuth(request);
     if (!auth) return reply.code(401).send({ error: "Unauthorized" });
 
     const id = Number((request.params as { id: string }).id);
     const { status } = request.body as { status: string };
+    if (status !== "done") {
+      return reply.code(400).send({ error: "Invalid status" });
+    }
 
     const { rows } = await pool.query<ShoppingRequest>(
       `UPDATE shopping_requests

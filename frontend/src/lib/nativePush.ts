@@ -1,5 +1,4 @@
 import { Capacitor } from "@capacitor/core";
-import type { PluginListenerHandle } from "@capacitor/core";
 import { FirebaseMessaging } from "@capacitor-firebase/messaging";
 import { PushNotifications } from "@capacitor/push-notifications";
 import { api } from "./api";
@@ -35,10 +34,21 @@ export async function initNativePushListeners(): Promise<void> {
   });
 }
 
-async function subscribeIosPush(): Promise<boolean> {
-  const perm = await FirebaseMessaging.requestPermissions();
-  if (perm.receive !== "granted") return false;
+async function requestNativePushPermission(): Promise<boolean> {
+  if (isIOS()) {
+    const perm = await FirebaseMessaging.requestPermissions();
+    return perm.receive === "granted";
+  }
 
+  const current = await PushNotifications.checkPermissions();
+  const perm =
+    current.receive === "prompt"
+      ? await PushNotifications.requestPermissions()
+      : current;
+  return perm.receive === "granted";
+}
+
+async function uploadFcmToken(): Promise<boolean> {
   try {
     const { token } = await FirebaseMessaging.getToken();
     await api.fcmSubscribe({
@@ -46,76 +56,21 @@ async function subscribeIosPush(): Promise<boolean> {
       platform: Capacitor.getPlatform(),
     });
     return true;
-  } catch {
+  } catch (err) {
+    console.warn("FCM token upload failed:", err);
     return false;
   }
 }
 
-async function subscribeAndroidPush(): Promise<boolean> {
-  const current = await PushNotifications.checkPermissions();
-  const perm =
-    current.receive === "prompt"
-      ? await PushNotifications.requestPermissions()
-      : current;
-  if (perm.receive !== "granted") return false;
-
-  return new Promise((resolve) => {
-    let settled = false;
-    let regHandle: PluginListenerHandle | null = null;
-    let errHandle: PluginListenerHandle | null = null;
-    let timeoutId: ReturnType<typeof setTimeout> | null = null;
-
-    const finish = async (ok: boolean) => {
-      if (settled) return;
-      settled = true;
-      if (timeoutId != null) clearTimeout(timeoutId);
-      await regHandle?.remove();
-      await errHandle?.remove();
-      resolve(ok);
-    };
-
-    void (async () => {
-      regHandle = await PushNotifications.addListener("registration", async (token) => {
-        try {
-          await api.fcmSubscribe({
-            token: token.value,
-            platform: Capacitor.getPlatform(),
-          });
-          await finish(true);
-        } catch (err) {
-          console.warn("FCM token upload failed:", err);
-          await finish(false);
-        }
-      });
-
-      errHandle = await PushNotifications.addListener("registrationError", (err) => {
-        console.warn("FCM registration error:", err);
-        void finish(false);
-      });
-
-      timeoutId = setTimeout(() => {
-        console.warn("FCM registration timed out");
-        void finish(false);
-      }, 15000);
-
-      await PushNotifications.register();
-    })();
-  });
-}
-
 export async function subscribeNativePush(): Promise<boolean> {
   if (!nativePushSupported()) return false;
-  if (isIOS()) return subscribeIosPush();
-  return subscribeAndroidPush();
+  if (!(await requestNativePushPermission())) return false;
+  return uploadFcmToken();
 }
 
-/** Re-register FCM token after login or when driver push was enabled earlier. */
-export async function syncNativePushRegistration(): Promise<void> {
+/** Request permission and upload FCM token after login or app resume. */
+export async function ensureNativePushRegistration(): Promise<void> {
   if (!nativePushSupported()) return;
-  if (isAndroid()) {
-    const perm = await PushNotifications.checkPermissions();
-    if (perm.receive !== "granted") return;
-  }
   await subscribeNativePush();
 }
 
