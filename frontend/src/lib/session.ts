@@ -7,7 +7,31 @@ export type BootstrapResult =
   | { ok: true; user: User }
   | { ok: false; reason: "offline" | "unauthorized" | "error"; message: string };
 
+export type SessionCheckResult =
+  | { ok: true; user: User }
+  | { ok: false; reason: "offline" | "unauthorized" | "error" };
+
 const MAX_ATTEMPTS = 12;
+
+/** Single auth check for app resume — no retry loop. */
+export async function checkSession(): Promise<SessionCheckResult> {
+  if (!(await isOnline())) {
+    return { ok: false, reason: "offline" };
+  }
+
+  try {
+    const user = await api.me();
+    return { ok: true, user };
+  } catch (err) {
+    if (isApiError(err, "unauthorized")) {
+      return { ok: false, reason: "unauthorized" };
+    }
+    if (isApiError(err, "network")) {
+      return { ok: false, reason: "offline" };
+    }
+    return { ok: false, reason: "error" };
+  }
+}
 
 export async function bootstrapSession(
   onStatus: (message: string) => void,

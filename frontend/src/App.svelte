@@ -13,10 +13,10 @@
   import PwaInstall from "./lib/PwaInstall.svelte";
   import LoadingScreen from "./lib/LoadingScreen.svelte";
   import { connectWsReconnect } from "./lib/ws";
-  import { startLogin, onNativeAuthComplete, clearNativeAuthStorage, isOAuthPending } from "./lib/auth";
+  import { startLogin, onNativeAuthComplete, onNativeAuthCancelled, clearNativeAuthStorage, isOAuthPending } from "./lib/auth";
   import { isNativeApp } from "./lib/platform";
   import { ensurePushRegistrationOnLogin } from "./lib/push";
-  import { bootstrapSession, refreshSession, registerSessionExpiryHandler } from "./lib/session";
+  import { bootstrapSession, checkSession, registerSessionExpiryHandler } from "./lib/session";
   import { wait } from "./lib/network";
 
   const wappenUrl = "/wappen.png";
@@ -30,18 +30,24 @@
   let view = $state<AppView>("home");
   let refreshKey = $state(0);
   let sessionRenewing = $state(false);
+  let bootstrapComplete = $state(false);
+
+  function registerPush(user: User) {
+    void api.config().then((cfg) =>
+      ensurePushRegistrationOnLogin(cfg.push.fcmEnabled, user.is_driver_notify),
+    );
+  }
 
   async function applyBootstrap() {
     const result = await bootstrapSession((msg) => {
       statusMessage = msg;
     });
+    bootstrapComplete = true;
 
     if (result.ok) {
       user = result.user;
       phase = "app";
-      void api.config().then((cfg) =>
-        ensurePushRegistrationOnLogin(cfg.push.fcmEnabled, result.user.is_driver_notify),
-      );
+      registerPush(result.user);
       return;
     }
 
@@ -55,45 +61,68 @@
     statusMessage = result.message;
   }
 
-  async function handleSessionExpired() {
-    if (sessionRenewing || phase === "loading" || isOAuthPending()) return;
+  async function promptReLogin() {
+    if (isOAuthPending() || sessionRenewing) return;
     sessionRenewing = true;
     user = null;
     phase = "loading";
     statusMessage = "Anmeldung abgelaufen — erneute Anmeldung …";
+    clearNativeAuthStorage();
     await wait(400);
-    void startLogin();
+    if (isNativeApp()) {
+      void startLogin();
+      return;
+    }
+    sessionRenewing = false;
+    phase = "login";
   }
 
   async function resumeSession() {
+    if (!bootstrapComplete) return;
     if (phase !== "app" && phase !== "login") return;
     if (isOAuthPending()) return;
+
+    if (sessionRenewing) {
+      sessionRenewing = false;
+    }
+
     const prevPhase = phase;
+    const prevUser = user;
+
     phase = "loading";
     statusMessage = "Sitzung wird geprüft …";
-    const refreshed = await refreshSession((msg) => {
-      statusMessage = msg;
-    });
-    if (refreshed) {
-      user = refreshed;
+
+    const result = await checkSession();
+
+    if (result.ok) {
+      user = result.user;
       phase = "app";
+      sessionRenewing = false;
       refreshKey += 1;
-      void api.config().then((cfg) =>
-        ensurePushRegistrationOnLogin(cfg.push.fcmEnabled, refreshed.is_driver_notify),
-      );
+      registerPush(result.user);
       return;
     }
-    if (prevPhase === "app") {
-      await handleSessionExpired();
+
+    if (result.reason === "unauthorized") {
+      if (prevPhase === "app" || prevUser) {
+        await promptReLogin();
+      } else {
+        sessionRenewing = false;
+        user = null;
+        phase = "login";
+      }
       return;
     }
-    user = null;
-    phase = "login";
+
+    user = prevUser;
+    phase = prevPhase;
+    sessionRenewing = false;
   }
 
   onMount(() => {
     const stopUnauthorized = registerSessionExpiryHandler(() => {
-      if (phase === "app") void handleSessionExpired();
+      if (!bootstrapComplete || isOAuthPending()) return;
+      void promptReLogin();
     });
 
     const stopNativeAuth = isNativeApp()
@@ -105,13 +134,26 @@
         })
       : () => {};
 
+    const stopNativeAuthCancelled = isNativeApp()
+      ? onNativeAuthCancelled(() => {
+          sessionRenewing = false;
+          user = null;
+          phase = "login";
+        })
+      : () => {};
+
     void applyBootstrap();
 
     const ws = connectWsReconnect(() => {
       refreshKey += 1;
     });
 
-    const cleanups: (() => void)[] = [stopUnauthorized, stopNativeAuth, () => ws()];
+    const cleanups: (() => void)[] = [
+      stopUnauthorized,
+      stopNativeAuth,
+      stopNativeAuthCancelled,
+      () => ws(),
+    ];
 
     if (isNativeApp()) {
       void CapApp.addListener("appStateChange", ({ isActive }) => {
@@ -243,9 +285,7 @@
                 {user}
                 onSaved={(u) => {
                   user = u;
-                  void api.config().then((cfg) =>
-                    ensurePushRegistrationOnLogin(cfg.push.fcmEnabled, u.is_driver_notify),
-                  );
+                  registerPush(u);
                 }}
                 onLogout={logout}
               />

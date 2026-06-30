@@ -12,14 +12,26 @@ const AUTH_TOKEN_HANDLED_KEY = "mitfahrbank_auth_token_handled";
 
 type AuthCompleteListener = () => void;
 const authCompleteListeners = new Set<AuthCompleteListener>();
+const authCancelledListeners = new Set<AuthCompleteListener>();
 
 export function onNativeAuthComplete(listener: AuthCompleteListener): () => void {
   authCompleteListeners.add(listener);
   return () => authCompleteListeners.delete(listener);
 }
 
+export function onNativeAuthCancelled(listener: AuthCompleteListener): () => void {
+  authCancelledListeners.add(listener);
+  return () => authCancelledListeners.delete(listener);
+}
+
 function notifyAuthComplete(): void {
   for (const listener of authCompleteListeners) {
+    listener();
+  }
+}
+
+function notifyAuthCancelled(): void {
+  for (const listener of authCancelledListeners) {
     listener();
   }
 }
@@ -124,6 +136,12 @@ export async function initNativeAuthListener(): Promise<void> {
 
   await App.addListener("appUrlOpen", ({ url }) => {
     void handleAuthDeepLink(url);
+  });
+
+  await Browser.addListener("browserFinished", () => {
+    if (!isOAuthPending()) return;
+    clearOAuthPending();
+    notifyAuthCancelled();
   });
 
   const launch = await App.getLaunchUrl();
