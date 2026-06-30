@@ -1,6 +1,7 @@
 import { App } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
 import { api } from "./api";
+import { wait } from "./network";
 import { isNativeApp } from "./platform";
 
 export const SERVER_ORIGIN = "https://mitfahren.stocksee.de";
@@ -9,6 +10,13 @@ export const AUTH_SCHEME = "de.stocksee.mitfahrbank";
 
 const OAUTH_PENDING_KEY = "mitfahrbank_oauth_pending";
 const AUTH_TOKEN_HANDLED_KEY = "mitfahrbank_auth_token_handled";
+/** Ignore browserFinished briefly after open (stale event from prior Browser.close). */
+const BROWSER_OPEN_GRACE_MS = 1200;
+const BROWSER_OPEN_TIMEOUT_MS = 15_000;
+
+let oauthFlowCompleting = false;
+/** -1 = opening in progress; only treat browserFinished after open resolved. */
+let browserOpenedAt = -1;
 
 type AuthCompleteListener = () => void;
 const authCompleteListeners = new Set<AuthCompleteListener>();
@@ -57,6 +65,17 @@ export function isOAuthPending(): boolean {
 export function clearNativeAuthStorage(): void {
   clearOAuthPending();
   sessionStorage.removeItem(AUTH_TOKEN_HANDLED_KEY);
+}
+
+/** Schließt einen offenen OAuth-Browser (z. B. nach Logout). */
+export async function dismissNativeAuthBrowser(): Promise<void> {
+  if (!isNativeApp()) return;
+  browserOpenedAt = -1;
+  try {
+    await Browser.close();
+  } catch {
+    /* nothing open */
+  }
 }
 
 /** Nach OAuth lokales Bundle laden (verhindert weißen Screen). */
@@ -116,10 +135,13 @@ export async function handleAuthDeepLink(url: string): Promise<boolean> {
   const token = new URL(url).searchParams.get("token");
   if (!token) return false;
 
+  oauthFlowCompleting = true;
   try {
     await Browser.close();
   } catch {
     /* Browser war bereits geschlossen */
+  } finally {
+    oauthFlowCompleting = false;
   }
 
   const ok = await exchangeMobileToken(token);
@@ -139,8 +161,12 @@ export async function initNativeAuthListener(): Promise<void> {
   });
 
   await Browser.addListener("browserFinished", () => {
+    if (oauthFlowCompleting) return;
     if (!isOAuthPending()) return;
+    if (browserOpenedAt < 0) return;
+    if (Date.now() - browserOpenedAt < BROWSER_OPEN_GRACE_MS) return;
     clearOAuthPending();
+    browserOpenedAt = -1;
     notifyAuthCancelled();
   });
 
@@ -150,13 +176,44 @@ export async function initNativeAuthListener(): Promise<void> {
   }
 }
 
-export async function startLogin(): Promise<void> {
-  if (isNativeApp()) {
-    markOAuthPending();
-    await Browser.open({
+function abortOAuthFlow(): void {
+  clearOAuthPending();
+  browserOpenedAt = -1;
+  notifyAuthCancelled();
+}
+
+async function resetBrowserBeforeOpen(): Promise<void> {
+  try {
+    await Browser.close();
+  } catch {
+    /* nothing open */
+  }
+  // Let Android tear down BrowserControllerActivity before re-opening.
+  await wait(200);
+}
+
+export async function startLogin(): Promise<boolean> {
+  if (!isNativeApp()) {
+    window.location.href = "/auth/login";
+    return true;
+  }
+
+  markOAuthPending();
+  browserOpenedAt = -1;
+
+  try {
+    await resetBrowserBeforeOpen();
+    const openPromise = Browser.open({
       url: `${SERVER_ORIGIN}/auth/login?native=1&browser=1`,
     });
-    return;
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => reject(new Error("Browser open timeout")), BROWSER_OPEN_TIMEOUT_MS);
+    });
+    await Promise.race([openPromise, timeoutPromise]);
+    browserOpenedAt = Date.now();
+    return true;
+  } catch {
+    abortOAuthFlow();
+    return false;
   }
-  window.location.href = "/auth/login";
 }

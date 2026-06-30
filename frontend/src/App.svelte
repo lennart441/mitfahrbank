@@ -13,7 +13,15 @@
   import PwaInstall from "./lib/PwaInstall.svelte";
   import LoadingScreen from "./lib/LoadingScreen.svelte";
   import { connectWsReconnect } from "./lib/ws";
-  import { startLogin, onNativeAuthComplete, onNativeAuthCancelled, clearNativeAuthStorage, isOAuthPending } from "./lib/auth";
+  import {
+    startLogin,
+    onNativeAuthComplete,
+    onNativeAuthCancelled,
+    clearNativeAuthStorage,
+    isOAuthPending,
+    markOAuthPending,
+    dismissNativeAuthBrowser,
+  } from "./lib/auth";
   import { isNativeApp } from "./lib/platform";
   import { ensurePushRegistrationOnLogin } from "./lib/push";
   import { bootstrapSession, checkSession, registerSessionExpiryHandler } from "./lib/session";
@@ -22,7 +30,7 @@
   const wappenUrl = "/wappen.png";
   const bmlehLogoUrl = "/bmleh.svg";
 
-  type Phase = "loading" | "login" | "app";
+  type Phase = "loading" | "oauth" | "login" | "app";
 
   let user = $state<User | null>(null);
   let phase = $state<Phase>("loading");
@@ -39,6 +47,8 @@
   }
 
   async function applyBootstrap() {
+    if (isOAuthPending() || phase === "oauth") return;
+
     const result = await bootstrapSession((msg) => {
       statusMessage = msg;
     });
@@ -65,14 +75,16 @@
     if (isOAuthPending() || sessionRenewing) return;
     sessionRenewing = true;
     user = null;
-    phase = "loading";
-    statusMessage = "Anmeldung abgelaufen — erneute Anmeldung …";
     clearNativeAuthStorage();
     await wait(400);
     if (isNativeApp()) {
-      void startLogin();
+      phase = "oauth";
+      statusMessage = "Anmeldung abgelaufen — erneute Anmeldung …";
+      await startLogin();
       return;
     }
+    phase = "loading";
+    statusMessage = "Anmeldung abgelaufen — erneute Anmeldung …";
     sessionRenewing = false;
     phase = "login";
   }
@@ -176,16 +188,27 @@
     };
   });
 
-  function login() {
+  async function login() {
+    if (isNativeApp()) {
+      markOAuthPending();
+      phase = "oauth";
+      statusMessage = "Anmeldung im Browser …";
+      await startLogin();
+      return;
+    }
     phase = "loading";
     statusMessage = "Anmeldung im Browser …";
     void startLogin();
   }
 
   async function logout() {
+    sessionRenewing = false;
     phase = "loading";
     statusMessage = "Abmelden …";
     clearNativeAuthStorage();
+    if (isNativeApp()) {
+      await dismissNativeAuthBrowser();
+    }
     await api.logout();
     user = null;
     view = "home";
@@ -202,7 +225,7 @@
   }
 </script>
 
-{#if phase === "loading"}
+{#if phase === "loading" || phase === "oauth"}
   <LoadingScreen message={statusMessage} />
 {:else}
   <div class="app-root">
