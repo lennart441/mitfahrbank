@@ -7,6 +7,7 @@ Frontend-only: Die App spricht mit dem **Produktions-Backend** unter https://mit
 - Xcode (inkl. Command Line Tools)
 - Node.js 22+
 - CocoaPods (`brew install cocoapods`)
+- **iOS 15+** Deployment Target (Capacitor 8 / Firebase Messaging 12)
 - Apple Developer Account (Signing, Push, TestFlight)
 - Firebase-Projekt (gleiches wie Android)
 
@@ -65,7 +66,7 @@ In Xcode: Product → Run (Simulator oder angeschlossenes iPhone).
 
 ## TestFlight (Preflight / Beta)
 
-**Version:** 1.0.2 (Build **3**) — `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in Xcode.
+**Version:** 1.0.3 (Build **4**) — `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in Xcode.
 
 ### Einmalig: App in App Store Connect
 
